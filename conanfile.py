@@ -20,7 +20,7 @@ class Concore2fullConan(ConanFile):
             del self.options.fPIC
 
     def build(self):
-        cmake = CMake(self)
+        cmake = CMake(self, generator="Ninja")
         cmake.configure(source_folder="src")
         cmake.build()
 
