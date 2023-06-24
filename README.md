@@ -2,7 +2,7 @@
 Core abstractions for dealing with concurrency in C++, using stackfull coroutines
 
 
-## Buildin
+## Building
 
 The following tools are needed:
 * [`conan`](https://www.conan.io/)
