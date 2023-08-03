@@ -35,3 +35,11 @@ jobs:
           checks: cppcheck clang-tidy
           clangtidyflags: '-quiet'
           cppcheckflags: '--enable=warning,style,performance,portability --inline-suppr'
+  conan-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
+        with:
+          checks: build
+          build_command: 'conan profile detect && conan create /github/workspace/'

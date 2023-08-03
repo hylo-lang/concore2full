@@ -1,6 +1,7 @@
 .vscode
 
 build
+CMakeUserPresets.json
 
 # Conan generated files
 conanbuild.sh
