@@ -19,6 +19,7 @@ docker run ${DOCKER_RUN_PARAMS} \
     -e INPUT_CHECKS='build test install warnings' \
     -e INPUT_CONANFLAGS="--output-folder /github/workspace/${BUILDDIR}" \
     -e INPUT_CMAKEFLAGS="-DCMAKE_TOOLCHAIN_FILE=/github/workspace/${BUILDDIR}/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release" \
+    -e INPUT_CTESTFLAGS="--test-dir /github/workspace/${BUILDDIR}/test/" \
     $IMAGENAME
 status=$?
 printStatus $status
