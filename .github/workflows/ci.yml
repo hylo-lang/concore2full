@@ -10,6 +10,7 @@ jobs:
         with:
           checks: build test install warnings
           cc: gcc
+          cmakeflags: '-DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release'
   clang:
     runs-on: ubuntu-latest
     steps:
@@ -18,6 +19,7 @@ jobs:
         with:
           checks: build test
           cc: clang-13
+          cmakeflags: '-DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release'
   clang-format:
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +35,7 @@ jobs:
       - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
         with:
           checks: cppcheck clang-tidy
+          cmakeflags: '-DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release'
           clangtidyflags: '-quiet'
           cppcheckflags: '--enable=warning,style,performance,portability --inline-suppr'
   conan-package:
