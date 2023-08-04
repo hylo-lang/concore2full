@@ -12,7 +12,7 @@ jobs:
           cc: gcc
           cmakeflags: -DCMAKE_TOOLCHAIN_FILE=/github/workspace/build/Release/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release
           ctestflags: --test-dir /github/workspace/build/Release/test/
-          test_command: ls -lsa --test-dir /github/workspace/build/Release/test/ && ctest --test-dir /github/workspace/build/Release/test/
+          test_command: ls -lsa /github/workspace/build/Release/test/ && ctest --test-dir /github/workspace/build/Release/test/
   # clang:
   #   runs-on: ubuntu-latest
   #   steps:
