@@ -1,5 +1,6 @@
 from conan import ConanFile
 from conan.tools.cmake import CMakeToolchain, CMake, cmake_layout, CMakeDeps
+from os import getenv
 
 class Concore2fullRecipe(ConanFile):
     name = "concore2full"
@@ -19,6 +20,14 @@ class Concore2fullRecipe(ConanFile):
 
     # Sources are located in the same place as this recipe, copy them to the recipe
     exports_sources = "CMakeLists.txt", "src/*", "include/*"
+
+    # @property
+    # def _run_tests(self):
+    #     return getenv("CONAN_RUN_TESTS", False)
+
+    def build_requirements(self):
+        # if self._run_tests:
+        self.build_requires("catch2/3.4.0")
 
     def config_options(self):
         if self.settings.os == "Windows":
