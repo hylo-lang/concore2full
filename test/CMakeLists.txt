@@ -1,15 +1,13 @@
 # The source files for the functional tests
 set(sourceFiles
-"test_main.cpp"
 "test_smoke.cpp"
 )
 
 find_package(Catch2 REQUIRED CONFIG)
 
 # Add the tests executable
-add_executable(test.concore2full ${func_sourceFiles})
-target_link_libraries(test.concore2full concore2full)
-target_link_libraries(test.concore2full PRIVATE Catch2::Catch2WithMain)
+add_executable(test.concore2full ${sourceFiles})
+target_link_libraries(test.concore2full PRIVATE concore2full Catch2::Catch2WithMain)
 target_include_directories(test.concore2full PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # Discover the Catch2 test built by the application
