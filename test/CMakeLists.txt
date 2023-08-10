@@ -1,6 +1,7 @@
 # The source files for the functional tests
 set(sourceFiles
 "test_smoke.cpp"
+"test_simple_example.cpp"
 )
 
 find_package(Catch2 REQUIRED CONFIG)
