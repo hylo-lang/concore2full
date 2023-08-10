@@ -16,6 +16,7 @@ class Concore2fullRecipe(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False], "with_tests": [True, False], "with_tracy": [True, False]}
     default_options = {"shared": False, "fPIC": True, "with_tests": False, "with_tracy": False}
+    build_policy = "missing"   # Some of the dependencies don't have builds for all our targets
 
     # Sources are located in the same place as this recipe, copy them to the recipe
     exports_sources = "CMakeLists.txt", "src/*", "include/*"
@@ -58,16 +59,16 @@ class Concore2fullRecipe(ConanFile):
         self.cpp_info.libs = ["concore2full"]
 
 # from <root>/build/ directory, run:
-#   > conan install .. --build=missing -s compiler.cppstd=17 -o with_tests=True
+#   > conan install .. --build=missing -s compiler.cppstd=20 -o with_tests=True
 #
 # then:
-#   > conan build .. -s compiler.cppstd=17
+#   > conan build .. -s compiler.cppstd=20
 #
 # publish and test the package with:
 #   > conan export ..
 #   > conan test ../test_package concore2full/0.1.0 --build=missing
 #
 # or, to run everything in one go:
-#   > conan create .. --build=missing -s compiler.cppstd=17
+#   > conan create .. --build=missing -s compiler.cppstd=20
 #
 # Note: changing `with_tests` value requires deleting the temporary build files.
