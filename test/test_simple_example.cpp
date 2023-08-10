@@ -38,7 +38,7 @@ int concurrency_example() {
 TEST_CASE("simple example using concore2full", "[smoke]") {
   profiling::zone zone{CURRENT_LOCATION()};
   profiling::sleep_for(100ms);
-  /*int r =*/ concurrency_example();
+  /*int r =*/concurrency_example();
   // std::cout << r << "\n";
 
   profiling::sleep_for(100ms);
