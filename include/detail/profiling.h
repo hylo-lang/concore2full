@@ -1,6 +1,7 @@
 #pragma once
 
 #include <thread>
+#include <string_view>
 
 #if USE_TRACY
 
