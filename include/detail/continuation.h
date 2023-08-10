@@ -1,36 +1,16 @@
 #pragma once
 
+#include "core_types.h"
 #include "profiling.h"
 #include <context_core_api.h>
 
-#include <functional>
 #include <cassert>
+#include <functional>
 
 namespace concore2full {
 namespace context {
 
-//! A handle for a continuation.
-//! This can be thought as a point from which we can susoend and resume exection of the program.
-//! Created by `callcc` and `resume` functions.
-using continuation_t = context_core_api_fcontext_t;
-
-namespace detail {
-
-//! The memory space for the stack of a new context
-struct stack_t {
-  std::size_t size{0};
-  void* sp{nullptr};
-};
-
-//! The type of object used for transferring a conttinuation handle with some data.
-using transfer_t = context_core_api_transfer_t;
-
-//! Returns a value from the continuation; to be used in profiling.
-uint64_t as_value(continuation_t c) {
-  return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(c));
-}
-
-} // namespace detail
+using continuation_t = detail::continuation_t;
 
 //! Concept for the context-switching function types.
 //! This matches all invocables with the signature `(continuation_t) -> continuation_t`.
@@ -66,13 +46,16 @@ public:
 };
 
 namespace detail {
+using stack_t = concore2full::detail::stack_t;
+using transfer_t = concore2full::detail::transfer_t;
+using concore2full::detail::as_value;
 
 //! The constrol structure that needs to be placed on a stack to be able to use it for stackfull
 //! coroutines. We need to know how to deallocate the stack memory, and we also need to store the
 //! data for the main function to be run on this stack.
 template <stack_allocator S, context_function F> struct stack_control_structure {
   //! The stack we are operating on.
-  detail::stack_t stack_;
+  stack_t stack_;
   //! The allocator used to create the stack, and to deallocate it.
   std::decay_t<S> allocator_;
   //! The main function to run in this new context.
@@ -136,10 +119,10 @@ template <typename C> inline void execution_context_entry(detail::transfer_t t) 
 
   // Start executing the given function.
   (void)profiling::zone{CURRENT_LOCATION_NC("callcc.start", profiling::color::green)}.set_value(
-      detail::as_value(t.fctx));
+      as_value(t.fctx));
   t.fctx = std::invoke(control->main_function_, t.fctx);
   (void)profiling::zone{CURRENT_LOCATION_NC("callcc.end", profiling::color::green)}.set_value(
-      detail::as_value(t.fctx));
+      as_value(t.fctx));
   assert(t.fctx);
 
   // Destroy the stack context.
