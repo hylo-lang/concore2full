@@ -3,6 +3,7 @@ set(sourceFiles
 "test_smoke.cpp"
 "test_simple_example.cpp"
 "test_stack_allocator.cpp"
+"test_callcc.cpp"
 )
 
 find_package(Catch2 REQUIRED CONFIG)
