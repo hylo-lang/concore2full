@@ -3,6 +3,9 @@
 #include "profiling.h"
 #include <context_core_api.h>
 
+#include <functional>
+#include <cassert>
+
 namespace concore2full {
 namespace context {
 
