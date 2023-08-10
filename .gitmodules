@@ -1,0 +1,3 @@
+[submodule "external/context-core-api"]
+	path = external/context-core-api
+	url = https://github.com/lucteo/context-core-api.git
