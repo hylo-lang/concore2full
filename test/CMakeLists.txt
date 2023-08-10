@@ -8,7 +8,7 @@ find_package(Catch2 REQUIRED CONFIG)
 # Add the tests executable
 add_executable(test.concore2full ${sourceFiles})
 target_link_libraries(test.concore2full PRIVATE concore2full Catch2::Catch2WithMain)
-target_include_directories(test.concore2full PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(test.concore2full PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${concore2full_SOURCE_DIR}/include")
 
 # Turn on warning-as-error
 set_property(TARGET test.concore2full PROPERTY COMPILE_WARNING_AS_ERROR ON)

@@ -25,7 +25,7 @@ jobs:
       - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
         with:
           checks: clang-format
-          clangformatdirs: src test_package/src
+          clangformatdirs: src test test_package/src
   static-checks:
     runs-on: ubuntu-latest
     steps:
