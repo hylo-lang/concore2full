@@ -4,15 +4,15 @@
 #include "core_types.h"
 #include "create_stackfull_coroutine.h"
 #include "profiling.h"
-#include "simple_stack_allocator.h"
-#include "stack_allocator.h"
+#include "stack/simple_stack_allocator.h"
+#include "stack/stack_allocator.h"
 #include <context_core_api.h>
 
 namespace concore2full {
 namespace detail {
 
 inline continuation_t callcc(context_function auto&& f);
-inline continuation_t callcc(std::allocator_arg_t, stack_allocator auto&& salloc,
+inline continuation_t callcc(std::allocator_arg_t, stack::stack_allocator auto&& salloc,
                              context_function auto&& f);
 inline continuation_t resume(continuation_t continuation);
 
@@ -21,9 +21,9 @@ inline continuation_t resume(continuation_t continuation);
 //! given context function. The given function is executed in a new stack context. We can suspend
 //! the context and resume other context, or the given context.
 inline continuation_t callcc(context_function auto&& f) {
-  return callcc(std::allocator_arg, simple_stack_allocator(), std::forward<decltype(f)>(f));
+  return callcc(std::allocator_arg, stack::simple_stack_allocator(), std::forward<decltype(f)>(f));
 }
-inline continuation_t callcc(std::allocator_arg_t, stack_allocator auto&& salloc,
+inline continuation_t callcc(std::allocator_arg_t, stack::stack_allocator auto&& salloc,
                              context_function auto&& f) {
   // detail::profile_event_callcc();
   (void)profiling::zone{CURRENT_LOCATION_NC("callcc", profiling::color::green)};

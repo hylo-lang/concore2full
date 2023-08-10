@@ -2,7 +2,7 @@
 
 #include "context_function.h"
 #include "core_types.h"
-#include "stack_allocator.h"
+#include "stack/stack_allocator.h"
 
 #include <cassert>
 
@@ -12,9 +12,9 @@ namespace detail {
 //! The constrol structure that needs to be placed on a stack to be able to use it for stackfull
 //! coroutines. We need to know how to deallocate the stack memory, and we also need to store the
 //! data for the main function to be run on this stack.
-template <stack_allocator S, context_function F> struct stack_control_structure {
+template <stack::stack_allocator S, context_function F> struct stack_control_structure {
   //! The stack we are operating on.
-  stack_t stack_;
+  stack::stack_t stack_;
   //! The allocator used to create the stack, and to deallocate it.
   std::decay_t<S> allocator_;
   //! The main function to run in this new context.
@@ -23,7 +23,7 @@ template <stack_allocator S, context_function F> struct stack_control_structure 
   friend void destroy(stack_control_structure* record) {
     // Save needed data.
     S allocator = std::move(record->allocator_);
-    stack_t stack = record->stack_;
+    stack::stack_t stack = record->stack_;
     // Destruct the object.
     record->~stack_control_structure();
     // Destroy the stack.

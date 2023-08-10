@@ -1,9 +1,15 @@
 #pragma once
 
-#include "core_types.h"
+#include <detail/core_types.h>
 
 namespace concore2full {
-namespace detail {
+namespace stack {
+
+//! The memory space for the stack of a new context
+struct stack_t {
+  std::size_t size{0};
+  void* sp{nullptr};
+};
 
 /// @brief Concept for a stack allocator.
 ///
@@ -14,5 +20,5 @@ concept stack_allocator = requires(T obj, stack_t stack) {
   { obj.deallocate(stack) };
 };
 
-} // namespace detail
+} // namespace stack
 } // namespace concore2full

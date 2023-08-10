@@ -1,5 +1,5 @@
-#include "detail/simple_stack_allocator.h"
-#include "detail/stack_allocator.h"
+#include "stack/simple_stack_allocator.h"
+#include "stack/stack_allocator.h"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -8,15 +8,15 @@
 using namespace concore2full;
 
 TEST_CASE("simple_stack_allocator models stack_allocator", "[stack_allocator]") {
-  REQUIRE(detail::stack_allocator<detail::simple_stack_allocator>);
+  REQUIRE(stack::stack_allocator<stack::simple_stack_allocator>);
 }
 TEST_CASE("std::allocator models stack_allocator", "[stack_allocator]") {
-  REQUIRE(!detail::stack_allocator<std::allocator<int>>);
+  REQUIRE(!stack::stack_allocator<std::allocator<int>>);
 }
 
 TEST_CASE("simple_stack_allocator can allocate memory", "[stack_allocator]") {
   // Arrange
-  detail::simple_stack_allocator sut;
+  stack::simple_stack_allocator sut;
 
   // Act
   auto stack = sut.allocate();
@@ -31,7 +31,7 @@ TEST_CASE("simple_stack_allocator can allocate memory", "[stack_allocator]") {
 
 TEST_CASE("simple_stack_allocator can allocate stacks multiple times", "[stack_allocator]") {
   // Arrange
-  detail::simple_stack_allocator sut;
+  stack::simple_stack_allocator sut;
 
   // Act
   auto stack1 = sut.allocate();
@@ -49,7 +49,7 @@ TEST_CASE("simple_stack_allocator can allocate stacks multiple times", "[stack_a
 
 TEST_CASE("simple_stack_allocator allocates memory that can be filled", "[stack_allocator]") {
   // Arrange
-  detail::simple_stack_allocator sut;
+  stack::simple_stack_allocator sut;
   constexpr uint8_t fill_value = 0xab;
 
   // Act: fill the memory with a special value
@@ -70,7 +70,7 @@ TEST_CASE("simple_stack_allocator allocates custom amount of memory", "[stack_al
   // Arrange
 
   // Act
-  detail::simple_stack_allocator sut(10);
+  stack::simple_stack_allocator sut(10);
   auto stack = sut.allocate();
 
   // Assert

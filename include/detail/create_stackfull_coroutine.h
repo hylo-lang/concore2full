@@ -1,17 +1,18 @@
 #pragma once
 
 #include "context_function.h"
-#include "stack_allocator.h"
 #include "stack_control_structure.h"
+
+#include "stack/stack_allocator.h"
 
 namespace concore2full {
 namespace detail {
 
 //! Allocate memory to be used as stack by stackfull coroutines.
-inline auto allocate_stack(stack_allocator auto&& allocator, context_function auto&& f) {
+inline auto allocate_stack(stack::stack_allocator auto&& allocator, context_function auto&& f) {
   using control_t = stack_control_structure<decltype(allocator), decltype(f)>;
   // Allocate the stack.
-  stack_t stack = allocator.allocate();
+  stack::stack_t stack = allocator.allocate();
   // Put the control structure on the stack, at the end of the allocated space.
   uintptr_t align = alignof(control_t);
   void* p = reinterpret_cast<void*>(
@@ -52,7 +53,7 @@ template <typename C> inline void execution_context_entry(detail::transfer_t t) 
 
 //! Creates an execution context, and starts executing the given function.
 //! Returns the continuation handle returned from the function.
-inline continuation_t create_stackfull_coroutine(stack_allocator auto&& allocator,
+inline continuation_t create_stackfull_coroutine(stack::stack_allocator auto&& allocator,
                                                  context_function auto&& f) {
   auto* control =
       allocate_stack(std::forward<decltype(allocator)>(allocator), std::forward<decltype(f)>(f));

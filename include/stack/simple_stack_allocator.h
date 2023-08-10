@@ -1,9 +1,9 @@
 #pragma once
 
-#include "core_types.h"
+#include "stack_allocator.h"
 
 namespace concore2full {
-namespace detail {
+namespace stack {
 
 /// @brief A simple stack allocator that uses `malloc`.
 ///
@@ -26,7 +26,7 @@ public:
 
   /// @brief Allocate a stack to be used for coroutines.
   /// @return Details about the newly allocated stack memory.
-  detail::stack_t allocate() {
+  stack_t allocate() {
     void* mem = std::malloc(size_);
     if (!mem)
       throw std::bad_alloc();
@@ -34,11 +34,11 @@ public:
   }
   /// @brief Deallocate the stack memory.
   /// @param stack Object indicating the stack that needs to be deallocated.
-  void deallocate(detail::stack_t stack) {
+  void deallocate(stack_t stack) {
     void* mem = static_cast<char*>(stack.sp) - stack.size;
     std::free(mem);
   }
 };
 
-} // namespace detail
+} // namespace stack
 } // namespace concore2full
