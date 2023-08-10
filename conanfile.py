@@ -1,6 +1,5 @@
 from conan import ConanFile
 from conan.tools.cmake import CMakeToolchain, CMake, cmake_layout, CMakeDeps
-from os import getenv
 
 class Concore2fullRecipe(ConanFile):
     name = "concore2full"
@@ -15,8 +14,8 @@ class Concore2fullRecipe(ConanFile):
 
     # Binary configuration
     settings = "os", "compiler", "build_type", "arch"
-    options = {"shared": [True, False], "fPIC": [True, False], "with_tests": [True, False]}
-    default_options = {"shared": False, "fPIC": True, "with_tests": False}
+    options = {"shared": [True, False], "fPIC": [True, False], "with_tests": [True, False], "with_tracy": [True, False]}
+    default_options = {"shared": False, "fPIC": True, "with_tests": False, "with_tracy": False}
 
     # Sources are located in the same place as this recipe, copy them to the recipe
     exports_sources = "CMakeLists.txt", "src/*", "include/*"
@@ -24,6 +23,8 @@ class Concore2fullRecipe(ConanFile):
     def build_requirements(self):
         self.requires("catch2/3.4.0")
         self.requires("context_core_api/1.0.0")
+        if self.options.with_tracy:
+            self.test_requires("tracy-interface/0.1.0")
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -41,6 +42,7 @@ class Concore2fullRecipe(ConanFile):
         deps.generate()
         tc = CMakeToolchain(self)
         tc.variables["WITH_TESTS"] = self.options.with_tests
+        tc.variables["WITH_TRACY"] = self.options.with_tracy
         tc.generate()
 
     def build(self):
