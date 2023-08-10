@@ -1,7 +1,10 @@
 #pragma once
 
+#include "context_function.h"
 #include "core_types.h"
 #include "profiling.h"
+#include "simple_stack_allocator.h"
+#include "stack_allocator.h"
 #include <context_core_api.h>
 
 #include <cassert>
@@ -11,39 +14,9 @@ namespace concore2full {
 namespace context {
 
 using continuation_t = detail::continuation_t;
-
-//! Concept for the context-switching function types.
-//! This matches all invocables with the signature `(continuation_t) -> continuation_t`.
-template <typename F>
-concept context_function = requires(F&& f, continuation_t continuation) {
-  { std::invoke(std::forward<F>(f), continuation) } -> std::same_as<continuation_t>;
-};
-
-template <typename T>
-concept stack_allocator = requires(T obj, detail::stack_t stack) {
-  { obj.allocate() } -> std::same_as<detail::stack_t>;
-  { obj.deallocate(stack) };
-};
-
-class simple_stack_allocator {
-  std::size_t size_;
-
-public:
-  static constexpr std::size_t default_size_ = 1024 * 1024;
-
-  simple_stack_allocator(std::size_t size = default_size_) : size_(default_size_) {}
-
-  detail::stack_t allocate() {
-    void* mem = std::malloc(size_);
-    if (!mem)
-      throw std::bad_alloc();
-    return {size_, static_cast<char*>(mem) + size_};
-  }
-  void deallocate(detail::stack_t stack) {
-    void* mem = static_cast<char*>(stack.sp) - stack.size;
-    std::free(mem);
-  }
-};
+using concore2full::detail::context_function;
+using concore2full::detail::simple_stack_allocator;
+using concore2full::detail::stack_allocator;
 
 namespace detail {
 using stack_t = concore2full::detail::stack_t;
