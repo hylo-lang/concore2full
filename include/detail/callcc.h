@@ -6,20 +6,10 @@
 #include "profiling.h"
 #include "simple_stack_allocator.h"
 #include "stack_allocator.h"
-#include "stack_control_structure.h"
 #include <context_core_api.h>
 
-#include <cassert>
-#include <functional>
-
 namespace concore2full {
-namespace context {
-
-using continuation_t = detail::continuation_t;
-using concore2full::detail::context_function;
-using concore2full::detail::create_stackfull_coroutine;
-using concore2full::detail::simple_stack_allocator;
-using concore2full::detail::stack_allocator;
+namespace detail {
 
 inline continuation_t callcc(context_function auto&& f);
 inline continuation_t callcc(std::allocator_arg_t, stack_allocator auto&& salloc,
@@ -51,5 +41,5 @@ inline continuation_t resume(continuation_t continuation) {
   return context_core_api_jump_fcontext(continuation, nullptr).fctx;
 }
 
-} // namespace context
+} // namespace detail
 } // namespace concore2full

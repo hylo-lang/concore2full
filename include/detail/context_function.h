@@ -2,6 +2,8 @@
 
 #include "core_types.h"
 
+#include <functional>
+
 namespace concore2full {
 namespace detail {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "detail/continuation.h"
+#include "detail/callcc.h"
 #include "global_thread_pool.h"
 
 namespace concore2full {
@@ -15,18 +15,18 @@ public:
   template <typename Fn> void spawn(Fn&& f) {
     profiling::zone_stack_snapshot current_zones;
     auto f_cont = [this, f = std::forward<Fn>(f)](
-                      context::continuation_t thread_cont) -> context::continuation_t {
+                      detail::continuation_t thread_cont) -> detail::continuation_t {
       this->thread_cont_ = thread_cont;
       res_ = f();
       auto c = this->on_async_complete();
       if (c) {
-        c = context::resume(c);
+        c = detail::resume(c);
       }
       return std::exchange(this->thread_cont_, nullptr);
     };
     global_thread_pool().start_thread([this, f_cont = std::move(f_cont), current_zones] {
       profiling::duplicate_zones_stack scoped_zones_stack{current_zones};
-      this->cont_ = context::callcc(std::move(f_cont));
+      this->cont_ = detail::callcc(std::move(f_cont));
     });
   }
 
@@ -43,13 +43,13 @@ private:
     second_finished,
   };
 
-  context::continuation_t cont_;
+  detail::continuation_t cont_;
   T res_;
   std::atomic<sync_state> sync_state_{sync_state::both_working};
-  context::continuation_t main_cont_;
-  context::continuation_t thread_cont_;
+  detail::continuation_t main_cont_;
+  detail::continuation_t thread_cont_;
 
-  context::continuation_t on_async_complete() {
+  detail::continuation_t on_async_complete() {
     sync_state expected{sync_state::both_working};
     if (sync_state_.compare_exchange_strong(expected, sync_state::first_finished)) {
       // We are first to arrive at completion.
@@ -68,7 +68,7 @@ private:
   }
 
   void on_main_complete() {
-    auto c = context::callcc([this](context::continuation_t await_cc) -> context::continuation_t {
+    auto c = detail::callcc([this](detail::continuation_t await_cc) -> detail::continuation_t {
       sync_state expected{sync_state::both_working};
       if (sync_state_.compare_exchange_strong(expected, sync_state::first_finishing)) {
         // We are first to arrive at completion.

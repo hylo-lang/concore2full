@@ -4,6 +4,8 @@
 #include "core_types.h"
 #include "stack_allocator.h"
 
+#include <cassert>
+
 namespace concore2full {
 namespace detail {
 
