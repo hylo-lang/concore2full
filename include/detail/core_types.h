@@ -23,7 +23,7 @@ struct stack_t {
 };
 
 //! Returns a value from the continuation; to be used in profiling.
-uint64_t as_value(continuation_t c) {
+inline uint64_t as_value(continuation_t c) {
   return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(c));
 }
 
