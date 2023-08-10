@@ -3,7 +3,12 @@ project(concore2full LANGUAGES CXX)
 
 find_package(context_core_api CONFIG REQUIRED)
 
-add_library(concore2full src/concore2full.cpp)
+set(Sources
+src/concore2full.cpp
+src/profiling.cpp
+)
+
+add_library(concore2full ${Sources})
 target_include_directories(concore2full PUBLIC include)
 set_target_properties(concore2full PROPERTIES PUBLIC_HEADER "include/concore2full.h")
 target_link_libraries(concore2full PUBLIC context_core_api::context_core_api)
