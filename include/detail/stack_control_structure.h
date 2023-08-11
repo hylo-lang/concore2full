@@ -9,17 +9,25 @@
 namespace concore2full {
 namespace detail {
 
-//! The constrol structure that needs to be placed on a stack to be able to use it for stackfull
-//! coroutines. We need to know how to deallocate the stack memory, and we also need to store the
-//! data for the main function to be run on this stack.
+/// @brief The control structure we put on stack for creating a stackfull coroutine.
+///
+/// @tparam S The type of the stack allocator we use
+/// @tparam F The type of the main context function we are using.
+///
+/// This will be placed on the stack to be able to start the coroutine. It contains information on
+/// how to deallocate the coroutine stack and it keeps track of the coroutine function object.
 template <stack::stack_allocator S, context_function F> struct stack_control_structure {
-  //! The stack we are operating on.
+  /// The stack we are operating on.
   stack::stack_t stack_;
-  //! The allocator used to create the stack, and to deallocate it.
+  /// The allocator used to create the stack, and to deallocate it.
   std::decay_t<S> allocator_;
-  //! The main function to run in this new context.
+  /// The main function to run in this new context.
   std::decay_t<F> main_function_;
 
+  /// @brief  Destroys the stackfull coroutine.
+  /// @param record Pointer to this, indicating the coroutine to be destroyed.
+  ///
+  /// This will destroy this object and deallocate the stack.
   friend void destroy(stack_control_structure* record) {
     // Save needed data.
     S allocator = std::move(record->allocator_);
@@ -30,13 +38,13 @@ template <stack::stack_allocator S, context_function F> struct stack_control_str
     allocator.deallocate(stack);
   }
 
-  //! The end of the useful portion of the stack.
+  /// The end of the useful portion of the stack.
   void* stack_end() const noexcept {
-    // Create a 64-byte gap between the control structure and the usefule stack.
+    // Create a 64-byte gap between the control structure and the useful stack.
     constexpr uintptr_t gap = 64;
     return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(this) - gap);
   }
-  //! The begin of the useful portion of the stack.
+  /// The begin of the useful portion of the stack.
   void* stack_begin() const noexcept {
     return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(stack_.sp) -
                                    static_cast<uintptr_t>(stack_.size));
