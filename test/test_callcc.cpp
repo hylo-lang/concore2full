@@ -71,10 +71,10 @@ TEST_CASE("can switch between the execution of two callcc functions", "[callcc]"
   });
   c2 = callcc([&](continuation_t& c) -> continuation_t {
     // Switch back asap.
-    auto caller = resume(c);
+    resume(c);
     // Note: will be resume by first function.
     // Switch to the first function.
-    caller = resume(c1);
+    resume(c1);
     // We are resumed again (by the first function).
     fun2_done = true;
     return parent;
