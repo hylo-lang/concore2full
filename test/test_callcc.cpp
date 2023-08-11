@@ -89,35 +89,43 @@ TEST_CASE("can switch between the execution of two callcc functions", "[callcc]"
 
 TEST_CASE("can use callcc to switch between threads", "[callcc]") {
   // Arrange
-  std::binary_semaphore sem{0};
+  std::binary_semaphore sem_thread_started{0};
+  std::binary_semaphore sem_thread_can_continue{0};
   continuation_t cont{nullptr};
-  std::thread::id id1;
-  std::thread::id id2;
+  int thread_counter{0};
+  int observed_counter1{0};
+  int observed_counter2{0};
   std::thread t{[&]() {
+    thread_counter = 100;
+    // The thread has started.
+    sem_thread_started.release();
     // Wait until the continuation is valid.
-    sem.acquire();
+    sem_thread_can_continue.acquire();
     // Jump to the continuation point.
     REQUIRE(cont != nullptr);
+    thread_counter = 101;
     auto caller = resume(cont);
+    thread_counter = 102;
     REQUIRE(caller == nullptr);
   }};
-
-  // Act
+  // Wait for the thread to start.
+  sem_thread_started.acquire();
   cont = callcc([&](continuation_t& c) -> continuation_t {
-    // Note the thread this is started from
-    id1 = std::this_thread::get_id();
+    // Note the thread counter.
+    observed_counter1 = thread_counter;
     // Jump back to the parent immediatelly.
     c = resume(c);
-    // Resumed from a different thread; note the thread ID
-    id2 = std::this_thread::get_id();
+    // Resumed from a different thread; note the thread counter.
+    observed_counter2 = thread_counter;
     // Go back.
     return c;
   });
-  // Tell the thread to call the coroutine.
-  sem.release();
-  // Wait for the thread to be done
-  t.join();
 
-  // Assert
-  REQUIRE(id1 != id2);
+  // Act/Assert: Tell the thread to call the coroutine, and wait for the thread to be done
+  REQUIRE(observed_counter1 == 100);
+  REQUIRE(observed_counter2 == 0);
+  sem_thread_can_continue.release();
+  t.join();
+  REQUIRE(observed_counter2 == 101);
+  REQUIRE(thread_counter == 102);
 }
