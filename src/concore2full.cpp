@@ -1,4 +1,4 @@
-#include "concore2full.h"
+#include "concore2full/concore2full.h"
 #include <iostream>
 
 void concore2full() {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thread_pool.h"
+#include "concore2full/thread_pool.h"
 
 namespace concore2full {
 

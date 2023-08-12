@@ -1,4 +1,4 @@
-#include "detail/callcc.h"
+#include "concore2full/detail/callcc.h"
 
 #include <catch2/catch_test_macros.hpp>
 

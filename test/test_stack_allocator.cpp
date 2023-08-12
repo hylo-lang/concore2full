@@ -1,8 +1,9 @@
-#include "stack/simple_stack_allocator.h"
-#include "stack/stack_allocator.h"
+#include "concore2full/stack/simple_stack_allocator.h"
+#include "concore2full/stack/stack_allocator.h"
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
-#include <catch2/catch_test_macros.hpp>
 #include <memory>
 
 using namespace concore2full;

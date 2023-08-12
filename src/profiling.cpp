@@ -1,4 +1,4 @@
-#include "detail/profiling.h"
+#include "concore2full/detail/profiling.h"
 
 #if USE_TRACY
 

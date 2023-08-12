@@ -1,6 +1,6 @@
 #pragma once
 
-#include "detail/profiling.h"
+#include "concore2full/detail/profiling.h"
 
 #include <thread>
 #include <vector>

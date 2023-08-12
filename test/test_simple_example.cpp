@@ -1,6 +1,6 @@
-#include "async_oper_state.h"
-#include "detail/profiling.h"
-#include "global_thread_pool.h"
+#include "concore2full/async_oper_state.h"
+#include "concore2full/detail/profiling.h"
+#include "concore2full/global_thread_pool.h"
 
 #include <catch2/catch_test_macros.hpp>
 

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "profiling.h"
+#include "concore2full/detail/profiling.h"
+
 #include <context_core_api.h>
 
 #include <cassert>

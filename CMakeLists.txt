@@ -10,7 +10,6 @@ src/profiling.cpp
 
 add_library(concore2full ${Sources})
 target_include_directories(concore2full PUBLIC include)
-set_target_properties(concore2full PROPERTIES PUBLIC_HEADER "include/concore2full.h")
 target_link_libraries(concore2full PUBLIC context_core_api::context_core_api)
 target_compile_features(concore2full INTERFACE cxx_std_20)
 
@@ -28,5 +27,3 @@ message(STATUS "With tests: ${WITH_TESTS}")
 if(${WITH_TESTS})
      add_subdirectory(test)
 endif()
-
-install(TARGETS concore2full)

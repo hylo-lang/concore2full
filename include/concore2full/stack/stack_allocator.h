@@ -1,6 +1,6 @@
 #pragma once
 
-#include <detail/core_types.h>
+#include "concore2full/detail/core_types.h"
 
 namespace concore2full {
 namespace stack {

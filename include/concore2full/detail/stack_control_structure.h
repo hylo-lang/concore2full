@@ -1,8 +1,9 @@
 #pragma once
 
-#include "context_function.h"
-#include "core_types.h"
-#include "stack/stack_allocator.h"
+#include "concore2full/detail/context_function.h"
+#include "concore2full/detail/core_types.h"
+
+#include "concore2full/stack/stack_allocator.h"
 
 #include <cassert>
 

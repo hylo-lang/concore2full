@@ -1,9 +1,9 @@
 #pragma once
 
-#include "context_function.h"
-#include "stack_control_structure.h"
+#include "concore2full/detail/context_function.h"
+#include "concore2full/detail/stack_control_structure.h"
 
-#include "stack/stack_allocator.h"
+#include "concore2full/stack/stack_allocator.h"
 
 namespace concore2full {
 namespace detail {
