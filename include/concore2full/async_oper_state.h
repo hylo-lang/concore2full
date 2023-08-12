@@ -24,38 +24,12 @@ namespace concore2full {
 /// will continue to work the coroutine.
 ///
 /// If the object is destryoed before the spawned work finishes, the work will be cancelled.
-template <typename T> class async_oper_state {
+template <typename T, typename Storage = int> class async_oper_state {
 public:
   async_oper_state() = default;
   ~async_oper_state() = default;
   // No copy, no move
   async_oper_state(const async_oper_state&) = delete;
-  async_oper_state(async_oper_state&&) = delete;
-
-  /// @brief  Spawn work with the default scheduler
-  /// @tparam Fn The type of the function to execute
-  /// @param f The function representing the work that needs to be executed concurrently.
-  ///
-  /// This will use the default scheduler to spawn new work concurrently.
-  ///
-  /// TODO: `f` needs to return something convertivle to `T`.
-  template <typename Fn> void spawn(Fn&& f) {
-    profiling::zone_stack_snapshot current_zones;
-    auto f_cont = [this, f = std::forward<Fn>(f)](
-                      detail::continuation_t thread_cont) -> detail::continuation_t {
-      this->thread_cont_ = thread_cont;
-      res_ = f();
-      auto c = this->on_async_complete();
-      if (c) {
-        c = detail::resume(c);
-      }
-      return std::exchange(this->thread_cont_, nullptr);
-    };
-    global_thread_pool().start_thread([this, f_cont = std::move(f_cont), current_zones] {
-      profiling::duplicate_zones_stack scoped_zones_stack{current_zones};
-      this->cont_ = detail::callcc(std::move(f_cont));
-    });
-  }
 
   /// @brief Await the result of the computation
   ///
@@ -78,6 +52,8 @@ private:
     second_finished,
   };
 
+  /// TODO
+  Storage storage_;
   /// TODO: check if we can remove this.
   detail::continuation_t cont_;
   /// The location where we need to store the result
@@ -129,6 +105,43 @@ private:
     // We are here if both threads finish; but we don't know which thread finished last and is
     // currently executing this.
   }
+
+  template <typename Fn> friend auto spawn(Fn&& f);
+
+  template<typename Fn>
+  async_oper_state(Fn&& to_execute) {
+    to_execute(*this);
+  }
 };
+
+/// @brief  Spawn work with the default scheduler
+/// @tparam Fn The type of the function to execute
+/// @param f The function representing the work that needs to be executed concurrently.
+///
+/// This will use the default scheduler to spawn new work concurrently.
+///
+/// TODO: `f` needs to return something convertivle to `T`.
+template <typename Fn> inline auto spawn(Fn&& f) {
+  using res_t = std::invoke_result_t<Fn>;
+  using op_t = async_oper_state<res_t>;
+  auto to_execute = [f = std::forward<Fn>(f)](op_t& op) {
+    profiling::zone_stack_snapshot current_zones;
+    auto f_cont = [&op, f = std::move(f)](
+                      detail::continuation_t thread_cont) -> detail::continuation_t {
+      op.thread_cont_ = thread_cont;
+      op.res_ = f();
+      auto c = op.on_async_complete();
+      if (c) {
+        c = detail::resume(c);
+      }
+      return std::exchange(op.thread_cont_, nullptr);
+    };
+    global_thread_pool().start_thread([&op, f_cont = std::move(f_cont), current_zones] {
+      profiling::duplicate_zones_stack scoped_zones_stack{current_zones};
+      op.cont_ = detail::callcc(std::move(f_cont));
+    });
+  };
+  return op_t{std::move(to_execute)};
+}
 
 } // namespace concore2full

@@ -28,8 +28,7 @@ int greeting_task() {
 
 int concurrency_example() {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  concore2full::async_oper_state<int> op;
-  op.spawn([]() -> int { return long_task(0); });
+  auto op{concore2full::spawn([]() -> int { return long_task(0); })};
   auto x = greeting_task();
   auto y = op.await();
   return x + y;
