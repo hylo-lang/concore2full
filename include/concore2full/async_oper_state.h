@@ -8,7 +8,7 @@ namespace concore2full {
 
 /// @brief Object to store the state of an asyncrhonous operation, and interact with it.
 ///
-/// @tparam T The return type of the asyncrhonous operation.
+/// @tparam Fn The type of the functor used for spawning concurrent work.
 ///
 /// This is used to spawn new work concurrently and to await the completion of this work.
 ///
@@ -24,12 +24,13 @@ namespace concore2full {
 /// will continue to work the coroutine.
 ///
 /// If the object is destryoed before the spawned work finishes, the work will be cancelled.
-template <typename T, typename Storage = int> class async_oper_state {
+template <typename Fn> class async_oper_state : private detail::task_base {
 public:
-  async_oper_state() = default;
   ~async_oper_state() = default;
   // No copy, no move
   async_oper_state(const async_oper_state&) = delete;
+
+  using res_t = std::invoke_result_t<Fn>;
 
   /// @brief Await the result of the computation
   ///
@@ -39,7 +40,7 @@ public:
   /// return the result of the work. If the main thread of exection arrives here before the work is
   /// completed, a "thread inversion" happens, and the main thread of execution continues work on
   /// the coroutine that was just spawned.
-  T await() {
+  res_t await() {
     on_main_complete();
     return res_;
   }
@@ -52,18 +53,20 @@ private:
     second_finished,
   };
 
-  /// TODO
-  Storage storage_;
+  /// The function that needs to be executed in the spawned work.
+  Fn f_;
+  /// The location where we need to store the result
+  res_t res_;
   /// TODO: check if we can remove this.
   detail::continuation_t cont_;
-  /// The location where we need to store the result
-  T res_;
   /// The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
   /// Continuation pointing to the code after the `await`, on the main thread of execution.
   detail::continuation_t main_cont_;
   /// Continuation pointing to the end of the thread.
   detail::continuation_t thread_cont_;
+  /// A snaphot of the profilng zones at that spawn point.
+  profiling::zone_stack_snapshot zones_;
 
   /// @brief  Called when the async work is completed
   /// @return The continuation that the work coroutine needs to do next (if there is any).
@@ -106,12 +109,22 @@ private:
     // currently executing this.
   }
 
-  template <typename Fn> friend auto spawn(Fn&& f);
-
-  template<typename Fn>
-  async_oper_state(Fn&& to_execute) {
-    to_execute(*this);
+  void execute() noexcept {
+    profiling::duplicate_zones_stack scoped_zones_stack{zones_};
+    cont_ = detail::callcc([this](detail::continuation_t thread_cont) -> detail::continuation_t {
+      thread_cont_ = thread_cont;
+      res_ = f_();
+      auto c = on_async_complete();
+      if (c) {
+        c = detail::resume(c);
+      }
+      return std::exchange(thread_cont_, nullptr);
+    });
   }
+
+  template <typename F> friend auto spawn(F&& f);
+
+  async_oper_state(Fn&& f) : f_(std::forward<Fn>(f)) { global_thread_pool().enqueue(this); }
 };
 
 /// @brief  Spawn work with the default scheduler
@@ -119,29 +132,9 @@ private:
 /// @param f The function representing the work that needs to be executed concurrently.
 ///
 /// This will use the default scheduler to spawn new work concurrently.
-///
-/// TODO: `f` needs to return something convertivle to `T`.
 template <typename Fn> inline auto spawn(Fn&& f) {
-  using res_t = std::invoke_result_t<Fn>;
-  using op_t = async_oper_state<res_t>;
-  auto to_execute = [f = std::forward<Fn>(f)](op_t& op) {
-    profiling::zone_stack_snapshot current_zones;
-    auto f_cont = [&op, f = std::move(f)](
-                      detail::continuation_t thread_cont) -> detail::continuation_t {
-      op.thread_cont_ = thread_cont;
-      op.res_ = f();
-      auto c = op.on_async_complete();
-      if (c) {
-        c = detail::resume(c);
-      }
-      return std::exchange(op.thread_cont_, nullptr);
-    };
-    global_thread_pool().start_thread([&op, f_cont = std::move(f_cont), current_zones] {
-      profiling::duplicate_zones_stack scoped_zones_stack{current_zones};
-      op.cont_ = detail::callcc(std::move(f_cont));
-    });
-  };
-  return op_t{std::move(to_execute)};
+  using op_t = async_oper_state<Fn>;
+  return op_t{std::forward<Fn>(f)};
 }
 
 } // namespace concore2full

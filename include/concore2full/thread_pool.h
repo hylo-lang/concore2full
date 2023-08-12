@@ -10,13 +10,6 @@ namespace concore2full {
 
 class thread_pool {
 public:
-  template <typename Fn> void start_thread(Fn&& f) {
-    threads_.emplace_back([f = std::forward<Fn>(f)] {
-      profiling::set_cur_thread_name("worker thread");
-      f();
-    });
-  }
-
   /// @brief  Enqueue a task for execution.
   /// @param task The task to be executed.
   void enqueue(detail::task_base* task) noexcept {
