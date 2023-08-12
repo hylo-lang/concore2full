@@ -48,4 +48,4 @@ jobs:
       - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
         with:
           checks: build
-          build_command: conan profile detect && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 && conan create /github/workspace/ --build=missing -s compiler.cppstd=17
+          build_command: conan profile detect && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 && conan create /github/workspace/ --build=missing -s compiler.cppstd=20
