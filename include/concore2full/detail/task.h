@@ -19,9 +19,9 @@ struct task_base {
 /// @tparam Fn The type of the function wrapped by this task.
 template <std::invocable Fn> struct fun_task : task_base {
   Fn f_;
-  wrapper_task(Fn&& f) : f_(std::forward<Fn>(f)) {}
+  fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {}
 
   void execute() noexcept override { std::invoke(f_); }
-}
+};
 
 } // namespace concore2full::detail

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "concore2full/detail/callcc.h"
+#include "concore2full/detail/task.h"
 #include "concore2full/global_thread_pool.h"
 
 namespace concore2full {
