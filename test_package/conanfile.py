@@ -11,6 +11,7 @@ class Concore2fullTestConan(ConanFile):
 
     def requirements(self):
         self.requires(self.tested_reference_str)
+        self.requires("context_core_api/1.0.0")
 
     def build(self):
         cmake = CMake(self)

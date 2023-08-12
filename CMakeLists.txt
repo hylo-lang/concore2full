@@ -4,7 +4,6 @@ project(concore2full LANGUAGES CXX)
 find_package(context_core_api CONFIG REQUIRED)
 
 set(Sources
-src/concore2full.cpp
 src/profiling.cpp
 )
 
