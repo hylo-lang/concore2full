@@ -2,8 +2,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <semaphore>
 #include <chrono>
+#include <semaphore>
 
 using namespace std::chrono_literals;
 
