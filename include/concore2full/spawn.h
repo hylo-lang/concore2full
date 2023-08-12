@@ -6,30 +6,33 @@
 
 namespace concore2full {
 
-/// @brief Object to store the state of an asyncrhonous operation, and interact with it.
+/// @brief The state of a spawned execution.
 ///
 /// @tparam Fn The type of the functor used for spawning concurrent work.
 ///
-/// This is used to spawn new work concurrently and to await the completion of this work.
+/// This represents the result of a `spawn` call, containing the state associated with the spawned
+/// work. It will hold the data needed to execute the spawned computation and get its results.
 ///
-/// It will store the state of the asyncrhonous object. This object cannot be moved nor copied, and
-/// has to remain valid for the entire async operation.
+/// It can only be constructed through calling the `spawn()` function.
 ///
-/// One can use `spawn` to start concurrent work for this operation state. One cannot start multiple
-/// asyncrhonous operations on the same object.
+/// It provides mechanisms for the main thread of execution to *await* the finish of the
+/// computation. That is, continue when the computation is finished. If the main thread of execution
+/// finishes first, then *thread inversion* will happen on the await point: the spawned thread will
+/// continue the main work, while the main thread will be suspended. However, no OS thread will be
+/// blocked.
 ///
-/// A spawned operation can be awaited by using `await` method. This will ensure that the execution
-/// is continue once the computaiton is finished. This doesn't block the current thread; if the
-/// current thread arrives at the await point earlier, there is a "thread inversion" and the thread
-/// will continue to work the coroutine.
+/// It exposes the type of the result of the spanwed computation.
 ///
 /// If the object is destryoed before the spawned work finishes, the work will be cancelled.
-template <typename Fn> class async_oper_state : private detail::task_base {
+///
+/// @sa spawn()
+template <typename Fn> class spawn_state : private detail::task_base {
 public:
-  ~async_oper_state() = default;
+  ~spawn_state() = default;
   // No copy, no move
-  async_oper_state(const async_oper_state&) = delete;
+  spawn_state(const spawn_state&) = delete;
 
+  /// The type returned by the spawned computation.
   using res_t = std::invoke_result_t<Fn>;
 
   /// @brief Await the result of the computation
@@ -124,7 +127,7 @@ private:
 
   template <typename F> friend auto spawn(F&& f);
 
-  async_oper_state(Fn&& f) : f_(std::forward<Fn>(f)) { global_thread_pool().enqueue(this); }
+  spawn_state(Fn&& f) : f_(std::forward<Fn>(f)) { global_thread_pool().enqueue(this); }
 };
 
 /// @brief  Spawn work with the default scheduler
@@ -133,7 +136,7 @@ private:
 ///
 /// This will use the default scheduler to spawn new work concurrently.
 template <typename Fn> inline auto spawn(Fn&& f) {
-  using op_t = async_oper_state<Fn>;
+  using op_t = spawn_state<Fn>;
   return op_t{std::forward<Fn>(f)};
 }
 
