@@ -1,8 +1,8 @@
-#include "concore2full/detail/profiling.h"
+#include "concore2full/profiling.h"
 
 #if USE_TRACY
 
-namespace profiling {
+namespace concore2full::profiling {
 
 namespace detail {
 // Function copied from Tracy profiler.
@@ -69,6 +69,6 @@ int duplicate_zones_stack::emit_zones_rec(zone* z, zone* base) {
     return 0;
 }
 
-} // namespace profiling
+} // namespace concore2full::profiling
 
 #endif

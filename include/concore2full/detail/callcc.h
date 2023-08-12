@@ -3,7 +3,7 @@
 #include "concore2full/detail/context_function.h"
 #include "concore2full/detail/core_types.h"
 #include "concore2full/detail/create_stackfull_coroutine.h"
-#include "concore2full/detail/profiling.h"
+#include "concore2full/profiling.h"
 #include "concore2full/stack/simple_stack_allocator.h"
 #include "concore2full/stack/stack_allocator.h"
 

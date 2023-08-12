@@ -1,7 +1,7 @@
 #pragma once
 
-#include <thread>
 #include <string_view>
+#include <thread>
 
 #if USE_TRACY
 
@@ -29,7 +29,7 @@
     return l;                                                                                      \
   }(__FUNCTION__)
 
-namespace profiling {
+namespace concore2full::profiling {
 
 struct zone_stack_snapshot;
 struct duplicate_zones_stack;
@@ -105,7 +105,7 @@ inline void set_cur_thread_name(const char* static_name) {
   tracy_interface::set_cur_thread_name(static_name);
 }
 
-} // namespace profiling
+} // namespace concore2full::profiling
 
 #else
 
@@ -114,7 +114,7 @@ inline void set_cur_thread_name(const char* static_name) {
 #define CURRENT_LOCATION_C(color) 0
 #define CURRENT_LOCATION_NC(name, color) 0
 
-namespace profiling {
+namespace concore2full::profiling {
 
 struct zone {
   explicit zone(int dummy) {}
@@ -145,11 +145,11 @@ struct duplicate_zones_stack {
 
 inline void set_cur_thread_name(const char* static_name) {}
 
-} // namespace profiling
+} // namespace concore2full::profiling
 
 #endif
 
-namespace profiling {
+namespace concore2full::profiling {
 
 enum class color {
   automatic = 0,
@@ -162,4 +162,4 @@ template <typename Duration> inline void sleep_for(Duration d) {
   std::this_thread::sleep_for(d);
 }
 
-} // namespace profiling
+} // namespace concore2full::profiling
