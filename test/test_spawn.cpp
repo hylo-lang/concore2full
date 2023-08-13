@@ -19,8 +19,7 @@ TEST_CASE("spawn can execute work", "[spawn]") {
     return 13;
   })};
   done.acquire();
-  std::this_thread::sleep_for(1ms);
-  concore2full::global_thread_pool().clear();
+  std::this_thread::sleep_for(5ms);
   auto res = op.await();
 
   // Assert

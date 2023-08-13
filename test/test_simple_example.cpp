@@ -43,5 +43,4 @@ TEST_CASE("simple example using concore2full", "[smoke]") {
   concore2full::profiling::sleep_for(100ms);
   // std::cout << "expecting a crash here, while joining threads\n";
   // TODO: handle this gracefully
-  concore2full::global_thread_pool().clear();
 }
