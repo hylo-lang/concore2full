@@ -16,8 +16,7 @@ int main() {
     return 13;
   })};
   done.acquire();
-  std::this_thread::sleep_for(1ms);
-  concore2full::global_thread_pool().clear();
+  std::this_thread::sleep_for(5ms);
   auto res = op.await();
   std::cout << res << "\n";
 
