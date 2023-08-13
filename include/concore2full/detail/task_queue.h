@@ -18,6 +18,9 @@ class task_queue {
   task_base* tail_;
 
 public:
+  task_queue() = default;
+  ~task_queue() = default;
+
   //! Checks if the queue is empty.
   [[nodiscard]] bool empty() const noexcept { return head_ == nullptr; }
 

@@ -19,7 +19,7 @@ struct task_base {
 /// @tparam Fn The type of the function wrapped by this task.
 template <std::invocable Fn> struct fun_task : task_base {
   Fn f_;
-  fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {}
+  explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {}
 
   void execute() noexcept override { std::invoke(f_); }
 };

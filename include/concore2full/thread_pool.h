@@ -23,7 +23,7 @@ public:
   //! Constructor. Using hardware available parallelism to size the pool of threads.
   thread_pool();
   //! Constructor. Using specified number of threads.
-  thread_pool(int num_threads);
+  explicit thread_pool(int num_threads);
   //! Destructor. Waits for all the threads to be done.
   ~thread_pool();
 
