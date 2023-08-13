@@ -4,6 +4,7 @@
 #include "concore2full/detail/task_queue.h"
 #include "concore2full/profiling.h"
 
+#include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <vector>
