@@ -1,4 +1,5 @@
 #include "concore2full/thread_pool.h"
+#include "concore2full/profiling.h"
 
 namespace concore2full {
 
@@ -58,7 +59,7 @@ void thread_pool::thread_data::request_stop() noexcept {
 bool thread_pool::thread_data::try_push(detail::task_base* task) noexcept {
   // Fail if we can't acquire the lock.
   std::unique_lock lock{bottleneck_, std::try_to_lock};
-  if (!lock || tasks_.empty())
+  if (!lock)
     return false;
 
   // Add the task at the back of the queue.
@@ -94,6 +95,9 @@ detail::task_base* thread_pool::thread_data::pop() noexcept {
   return tasks_.pop_front();
 }
 void thread_pool::thread_main(int index) noexcept {
+  profiling::zone zone{CURRENT_LOCATION()};
+  zone.set_value(index);
+
   int thread_count = threads_.size();
   while (true) {
     detail::task_base* to_execute{nullptr};
@@ -118,6 +122,7 @@ void thread_pool::thread_main(int index) noexcept {
     }
 
     assert(to_execute);
+    profiling::zone zone{CURRENT_LOCATION_N("execute")};
     to_execute->execute();
     // TODO: pass in current_index
   }

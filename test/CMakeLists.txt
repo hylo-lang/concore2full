@@ -5,6 +5,7 @@ set(sourceFiles
 "test_stack_allocator.cpp"
 "test_callcc.cpp"
 "test_spawn.cpp"
+"test_thread_pool.cpp"
 )
 
 find_package(Catch2 REQUIRED CONFIG)

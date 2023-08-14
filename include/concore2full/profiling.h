@@ -59,8 +59,6 @@ private:
   friend duplicate_zones_stack;
 };
 
-inline thread_local zone* zone::thread_top_zone_{nullptr};
-
 struct zone_stack_snapshot {
   zone_stack_snapshot() : top_zone_{zone::thread_top_zone_} {}
 
