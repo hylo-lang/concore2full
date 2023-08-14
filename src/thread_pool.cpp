@@ -122,7 +122,7 @@ void thread_pool::thread_main(int index) noexcept {
     }
 
     assert(to_execute);
-    profiling::zone zone{CURRENT_LOCATION_N("execute")};
+    profiling::zone zone2{CURRENT_LOCATION_N("execute")};
     to_execute->execute();
     // TODO: pass in current_index
   }
