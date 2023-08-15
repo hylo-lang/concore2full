@@ -1,6 +1,6 @@
-#include "concore2full/async_oper_state.h"
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/profiling.h"
+#include "concore2full/spawn.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -28,8 +28,7 @@ int greeting_task() {
 
 int concurrency_example() {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  concore2full::async_oper_state<int> op;
-  op.spawn([]() -> int { return long_task(0); });
+  auto op{concore2full::spawn([]() -> int { return long_task(0); })};
   auto x = greeting_task();
   auto y = op.await();
   return x + y;
@@ -44,5 +43,4 @@ TEST_CASE("simple example using concore2full", "[smoke]") {
   concore2full::profiling::sleep_for(100ms);
   // std::cout << "expecting a crash here, while joining threads\n";
   // TODO: handle this gracefully
-  concore2full::global_thread_pool().clear();
 }

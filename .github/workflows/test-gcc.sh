@@ -21,7 +21,7 @@ docker run ${DOCKER_RUN_PARAMS} \
     -e INPUT_PREBUILD_COMMAND='conan profile detect && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 ; rm -fR ~/.conan2/profiles' \
     -e INPUT_BUILDDIR="/github/workspace/${BUILDDIR}" \
     -e INPUT_CC='gcc' \
-    -e INPUT_CONANFLAGS="--output-folder /github/workspace/${BUILDDIR} -o with_tests=True" \
+    -e INPUT_CONANFLAGS="--output-folder /github/workspace/${BUILDDIR} -s compiler.cppstd=20 -o with_tests=True" \
     -e INPUT_CMAKEFLAGS="-DCMAKE_TOOLCHAIN_FILE=/github/workspace/${BUILDDIR}/build/Release/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release" \
     -e INPUT_CTESTFLAGS="--test-dir /github/workspace/${BUILDDIR}/test/" \
     $IMAGENAME

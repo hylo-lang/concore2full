@@ -1,60 +1,39 @@
 #pragma once
 
 #include "concore2full/detail/callcc.h"
+#include "concore2full/detail/task_base.h"
 #include "concore2full/global_thread_pool.h"
 
 namespace concore2full {
 
-/// @brief Object to store the state of an asyncrhonous operation, and interact with it.
+/// @brief The state of a spawned execution.
 ///
-/// @tparam T The return type of the asyncrhonous operation.
+/// @tparam Fn The type of the functor used for spawning concurrent work.
 ///
-/// This is used to spawn new work concurrently and to await the completion of this work.
+/// This represents the result of a `spawn` call, containing the state associated with the spawned
+/// work. It will hold the data needed to execute the spawned computation and get its results.
 ///
-/// It will store the state of the asyncrhonous object. This object cannot be moved nor copied, and
-/// has to remain valid for the entire async operation.
+/// It can only be constructed through calling the `spawn()` function.
 ///
-/// One can use `spawn` to start concurrent work for this operation state. One cannot start multiple
-/// asyncrhonous operations on the same object.
+/// It provides mechanisms for the main thread of execution to *await* the finish of the
+/// computation. That is, continue when the computation is finished. If the main thread of execution
+/// finishes first, then *thread inversion* will happen on the await point: the spawned thread will
+/// continue the main work, while the main thread will be suspended. However, no OS thread will be
+/// blocked.
 ///
-/// A spawned operation can be awaited by using `await` method. This will ensure that the execution
-/// is continue once the computaiton is finished. This doesn't block the current thread; if the
-/// current thread arrives at the await point earlier, there is a "thread inversion" and the thread
-/// will continue to work the coroutine.
+/// It exposes the type of the result of the spanwed computation.
 ///
 /// If the object is destryoed before the spawned work finishes, the work will be cancelled.
-template <typename T> class async_oper_state {
+///
+/// @sa spawn()
+template <typename Fn> class spawn_state : private detail::task_base {
 public:
-  async_oper_state() = default;
-  ~async_oper_state() = default;
+  ~spawn_state() = default;
   // No copy, no move
-  async_oper_state(const async_oper_state&) = delete;
-  async_oper_state(async_oper_state&&) = delete;
+  spawn_state(const spawn_state&) = delete;
 
-  /// @brief  Spawn work with the default scheduler
-  /// @tparam Fn The type of the function to execute
-  /// @param f The function representing the work that needs to be executed concurrently.
-  ///
-  /// This will use the default scheduler to spawn new work concurrently.
-  ///
-  /// TODO: `f` needs to return something convertivle to `T`.
-  template <typename Fn> void spawn(Fn&& f) {
-    profiling::zone_stack_snapshot current_zones;
-    auto f_cont = [this, f = std::forward<Fn>(f)](
-                      detail::continuation_t thread_cont) -> detail::continuation_t {
-      this->thread_cont_ = thread_cont;
-      res_ = f();
-      auto c = this->on_async_complete();
-      if (c) {
-        c = detail::resume(c);
-      }
-      return std::exchange(this->thread_cont_, nullptr);
-    };
-    global_thread_pool().start_thread([this, f_cont = std::move(f_cont), current_zones] {
-      profiling::duplicate_zones_stack scoped_zones_stack{current_zones};
-      this->cont_ = detail::callcc(std::move(f_cont));
-    });
-  }
+  /// The type returned by the spawned computation.
+  using res_t = std::invoke_result_t<Fn>;
 
   /// @brief Await the result of the computation
   ///
@@ -64,7 +43,7 @@ public:
   /// return the result of the work. If the main thread of exection arrives here before the work is
   /// completed, a "thread inversion" happens, and the main thread of execution continues work on
   /// the coroutine that was just spawned.
-  T await() {
+  res_t await() {
     on_main_complete();
     return res_;
   }
@@ -77,16 +56,20 @@ private:
     second_finished,
   };
 
+  /// The function that needs to be executed in the spawned work.
+  Fn f_;
+  /// The location where we need to store the result
+  res_t res_;
   /// TODO: check if we can remove this.
   detail::continuation_t cont_;
-  /// The location where we need to store the result
-  T res_;
   /// The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
   /// Continuation pointing to the code after the `await`, on the main thread of execution.
   detail::continuation_t main_cont_;
   /// Continuation pointing to the end of the thread.
   detail::continuation_t thread_cont_;
+  /// A snaphot of the profilng zones at that spawn point.
+  profiling::zone_stack_snapshot zones_;
 
   /// @brief  Called when the async work is completed
   /// @return The continuation that the work coroutine needs to do next (if there is any).
@@ -128,6 +111,33 @@ private:
     // We are here if both threads finish; but we don't know which thread finished last and is
     // currently executing this.
   }
+
+  void execute(int) noexcept {
+    profiling::duplicate_zones_stack scoped_zones_stack{zones_};
+    cont_ = detail::callcc([this](detail::continuation_t thread_cont) -> detail::continuation_t {
+      thread_cont_ = thread_cont;
+      res_ = f_();
+      auto c = on_async_complete();
+      if (c) {
+        c = detail::resume(c);
+      }
+      return std::exchange(thread_cont_, nullptr);
+    });
+  }
+
+  template <typename F> friend auto spawn(F&& f);
+
+  spawn_state(Fn&& f) : f_(std::forward<Fn>(f)) { global_thread_pool().enqueue(this); }
 };
+
+/// @brief  Spawn work with the default scheduler
+/// @tparam Fn The type of the function to execute
+/// @param f The function representing the work that needs to be executed concurrently.
+///
+/// This will use the default scheduler to spawn new work concurrently.
+template <typename Fn> inline auto spawn(Fn&& f) {
+  using op_t = spawn_state<Fn>;
+  return op_t{std::forward<Fn>(f)};
+}
 
 } // namespace concore2full

@@ -5,6 +5,7 @@ find_package(context_core_api CONFIG REQUIRED)
 
 set(Sources
 src/profiling.cpp
+src/thread_pool.cpp
 )
 
 add_library(concore2full ${Sources})

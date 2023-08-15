@@ -13,7 +13,7 @@ jobs:
           checks: build test install warnings
           prebuild_command: conan profile detect -f && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 ; rm -fR ~/.conan2/profiles
           cc: gcc
-          conanflags: -o with_tests=True
+          conanflags: -s compiler.cppstd=20 -o with_tests=True
           cmakeflags: -DCMAKE_TOOLCHAIN_FILE=/github/workspace/build/Release/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release
           ctestflags: --test-dir /tmp/build/test
   clang-format:
@@ -36,6 +36,7 @@ jobs:
         with:
           checks: cppcheck clang-tidy
           prebuild_command: conan profile detect -f && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 ; rm -fR ~/.conan2/profiles
+          conanflags: -s compiler.cppstd=20
           cmakeflags: -DCMAKE_TOOLCHAIN_FILE=/github/workspace/build/Release/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release
           clangtidyflags: '-quiet'
           cppcheckflags: '--enable=warning,style,performance,portability --inline-suppr'

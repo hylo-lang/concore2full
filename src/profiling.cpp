@@ -4,6 +4,8 @@
 
 namespace concore2full::profiling {
 
+thread_local zone* zone::thread_top_zone_{nullptr};
+
 namespace detail {
 // Function copied from Tracy profiler.
 uint32_t get_hsv_color(uint64_t hue, int value) {

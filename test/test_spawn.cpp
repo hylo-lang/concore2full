@@ -1,4 +1,4 @@
-#include "concore2full/async_oper_state.h"
+#include "concore2full/spawn.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -13,15 +13,13 @@ TEST_CASE("spawn can execute work", "[spawn]") {
   std::binary_semaphore done{0};
 
   // Act
-  concore2full::async_oper_state<int> op;
-  op.spawn([&]() -> int {
+  auto op{concore2full::spawn([&]() -> int {
     called = true;
     done.release();
     return 13;
-  });
+  })};
   done.acquire();
-  std::this_thread::sleep_for(1ms);
-  concore2full::global_thread_pool().clear();
+  std::this_thread::sleep_for(5ms);
   auto res = op.await();
 
   // Assert
