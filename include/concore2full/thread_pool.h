@@ -1,6 +1,6 @@
 #pragma once
 
-#include "concore2full/detail/task.h"
+#include "concore2full/detail/task_base.h"
 #include "concore2full/detail/task_queue.h"
 #include "concore2full/profiling.h"
 
