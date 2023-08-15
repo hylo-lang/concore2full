@@ -12,7 +12,7 @@ template <std::invocable Fn> struct fun_task : concore2full::detail::task_base {
   Fn f_;
   explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {}
 
-  void execute() noexcept override { std::invoke(f_); }
+  void execute(int) noexcept override { std::invoke(f_); }
 };
 
 TEST_CASE("thread_pool can be default constructed, and has some parallelism", "[thread_pool]") {
@@ -97,7 +97,7 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the availabile hardware
       explicit my_task(std::atomic<int>& task_counter, int wait_limit)
           : task_counter_(task_counter), wait_limit_(wait_limit) {}
 
-      void execute() noexcept override {
+      void execute(int) noexcept override {
         // Wait until there are enough tasks executing; stop after some time, if we don't get the
         // required number of tasks entering here.
         task_counter_.fetch_add(1, std::memory_order_release);

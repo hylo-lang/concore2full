@@ -112,7 +112,7 @@ private:
     // currently executing this.
   }
 
-  void execute() noexcept {
+  void execute(int) noexcept {
     profiling::duplicate_zones_stack scoped_zones_stack{zones_};
     cont_ = detail::callcc([this](detail::continuation_t thread_cont) -> detail::continuation_t {
       thread_cont_ = thread_cont;
