@@ -15,13 +15,4 @@ struct task_base {
   virtual void execute() noexcept = 0;
 };
 
-/// @brief Concrete task type that just calls a user-provided function.
-/// @tparam Fn The type of the function wrapped by this task.
-template <std::invocable Fn> struct fun_task : task_base {
-  Fn f_;
-  explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {}
-
-  void execute() noexcept override { std::invoke(f_); }
-};
-
 } // namespace concore2full::detail
