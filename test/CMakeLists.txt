@@ -6,6 +6,7 @@ set(sourceFiles
 "test_callcc.cpp"
 "test_spawn.cpp"
 "test_thread_pool.cpp"
+"test_sync_execute.cpp"
 )
 
 find_package(Catch2 REQUIRED CONFIG)

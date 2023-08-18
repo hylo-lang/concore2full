@@ -101,6 +101,7 @@ private:
         this->main_cont_ = await_cc;
         // We are done "finishing"
         sync_state_ = sync_state::first_finished;
+        // TODO: thread_cont_ may not be set yet; there is a race condition
         return std::exchange(this->thread_cont_, nullptr);
       } else {
         // The async thread finished; we can continue directly.

@@ -1,5 +1,10 @@
 #include "concore2full/thread_pool.h"
 #include "concore2full/profiling.h"
+#include "concore2full/thread_control_helper.h"
+
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 namespace concore2full {
 
@@ -90,7 +95,9 @@ detail::task_base* thread_pool::thread_data::pop() noexcept {
   while (tasks_.empty()) {
     if (should_stop_)
       return nullptr;
-    cv_.wait(lock);
+    thread_control_helper::check_for_thread_inversion();
+    // cv_.wait(lock);
+    cv_.wait_for(lock, 100ms);
   }
   return tasks_.pop_front();
 }
@@ -100,6 +107,9 @@ void thread_pool::thread_main(int index) noexcept {
 
   int thread_count = threads_.size();
   while (true) {
+    // First check if we need to restore this thread to somebody else.
+    thread_control_helper::check_for_thread_inversion();
+
     detail::task_base* to_execute{nullptr};
     int current_index = 0;
 
