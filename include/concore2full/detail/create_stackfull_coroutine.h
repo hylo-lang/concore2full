@@ -51,6 +51,7 @@ inline detail::transfer_t execution_context_exit(detail::transfer_t t) noexcept 
 /// to create the coroutine, but also handles the destruction of the coroutine.
 template <typename C> inline void execution_context_entry(detail::transfer_t t) noexcept {
   // The parameter passed in is our control structure.
+  // cppcheck-suppress uninitvar
   auto* control = reinterpret_cast<C*>(t.data);
   assert(control);
   assert(t.fctx);
