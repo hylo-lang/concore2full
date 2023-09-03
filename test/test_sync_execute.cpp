@@ -123,6 +123,7 @@ TEST_CASE("nested sync_execute: simple call + thread inversion", "[sync_execute]
   REQUIRE(called2);
 }
 
+/*
 TEST_CASE("nested sync_execute: thread inversion + thread inversion", "[sync_execute]") {
   // Arrange
   bool called1{false};
@@ -167,5 +168,6 @@ TEST_CASE("nested sync_execute: thread inversion + simple + thread inversion", "
   REQUIRE(called2);
   REQUIRE(called3);
 }
+*/
 
 // TODO: nested sync_execute

@@ -4,6 +4,8 @@
 
 namespace concore2full {
 
+struct thread_info;
+
 /**
  * @brief Defines the entitiy that needs to be notified when reclaiming a thread.
  *
@@ -57,26 +59,28 @@ public:
  */
 class thread_control_helper {
 public:
-  //! Constructor. Gets information about the currently working thread.
-  thread_control_helper();
-  //! Destructor.
-  ~thread_control_helper();
-
   //! Get the thread_reclaimer object associated with the current thread.
   static thread_reclaimer* get_current_thread_reclaimer();
 
   //! Sets the thread_reclaimer object for the current thread.
   static void set_current_thread_reclaimer(thread_reclaimer* new_reclaimer);
 
-  //! Performs a thread inversion if needed, to resume execution on the same thread that the
-  //! constructor was called. Needs to be called before the destructor if the current thread is
-  //! different.
-  void ensure_starting_thread();
-
   //! Called by the original thread when it is notified that it needs to be reclaimed.
   static void check_for_thread_inversion();
+};
+
+class thread_snapshot {
+public:
+  //! Constructor. Gets information about the currently working thread.
+  thread_snapshot();
+  //! Destructor.
+  ~thread_snapshot();
+
+  //! Get back to the thread on which the constructor was called.
+  void revert();
 
 private:
+  friend class thread_control_helper;
   struct switch_data;
 
   //! Data for thread inversion.
@@ -84,12 +88,21 @@ private:
   //! Stored on the thread that is requesting the inversion.
   std::atomic<switch_data*> should_switch_{nullptr};
 
-  //! The previous control helper on this thread. Used to deal with cases of nested `sync_execute`
+  //! The previous thread snapshot this thread. Used to deal with cases of nested `sync_execute`
   //! calls.
-  thread_control_helper* previous_{nullptr};
+  thread_snapshot* previous_{nullptr};
 
-  //! The address of the thread_reclaimer object for the original thread.
-  thread_reclaimer** reclaimer_addrress_{nullptr};
+  //! The original thread.
+  thread_info* original_thread_{nullptr};
+
+  /**
+   * @brief Wait until we can start the switch of control flows
+   * @return `true` if we still need to perform the switch.
+   */
+  bool wait_for_switch_start();
+
+  //! Perform the control flow switch to get back to the original thread.
+  void perform_switch();
 };
 
 } // namespace concore2full

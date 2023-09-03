@@ -115,6 +115,9 @@ void thread_pool::thread_main(int index) noexcept {
   my_thread_reclaimer this_thread_reclaimer{&work_data_[index]};
   thread_control_helper::set_current_thread_reclaimer(&this_thread_reclaimer);
 
+  // We need to exit on the same thread.
+  thread_snapshot t;
+
   int thread_count = threads_.size();
   while (true) {
     // First check if we need to restore this thread to somebody else.
@@ -145,6 +148,9 @@ void thread_pool::thread_main(int index) noexcept {
     profiling::zone zone2{CURRENT_LOCATION_N("execute")};
     to_execute->execute(current_index);
   }
+
+  // Ensure we finish on the same thread
+  t.revert();
 }
 
 } // namespace concore2full
