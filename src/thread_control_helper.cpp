@@ -151,7 +151,6 @@ bool thread_snapshot::wait_for_switch_start() {
 void thread_snapshot::perform_switch() {
   // Request a thread inversion. We might need to wait if our original thread is currently busy.
   (void)detail::callcc([this](detail::continuation_t c) -> detail::continuation_t {
-    auto* p = tls_thread_info_.last_snapshot_;
     switch_data local_switch_data;
     local_switch_data.exit_ = c; // The orginal thread must switch to this.
     should_switch_.store(&local_switch_data, std::memory_order_release);
