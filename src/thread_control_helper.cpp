@@ -19,7 +19,7 @@ static thread_control_data g_thread_control_data;
 struct thread_info;
 
 //! Data used for switching control flows between threads.
-struct thread_switch_data {
+struct thread_switch_control {
   //! True if this thread started to switch control flows with another thread.
   //! Will be set only for the originating thread.
   bool is_currently_switching_{false};
@@ -61,13 +61,13 @@ struct thread_info {
   //! The last snapshot object we have on our current stack.
   thread_snapshot* last_snapshot_{nullptr};
   //! The data used for swtiching control flow with other threads.
-  thread_switch_data switch_data_;
+  thread_switch_control switch_data_;
 };
 
 //! The data associated with each thread.
 thread_local thread_info tls_thread_info_;
 
-bool thread_switch_data::request_switch_to(thread_info* self, thread_info* t) {
+bool thread_switch_control::request_switch_to(thread_info* self, thread_info* t) {
   assert(self != t);
   std::lock_guard<std::mutex> lock{g_thread_control_data.dependency_bottleneck_};
   if (!t->switch_data_.is_currently_switching_) {
@@ -79,7 +79,7 @@ bool thread_switch_data::request_switch_to(thread_info* self, thread_info* t) {
     return false;
   }
 }
-void thread_switch_data::switch_complete() {
+void thread_switch_control::switch_complete() {
   std::lock_guard<std::mutex> lock{g_thread_control_data.dependency_bottleneck_};
   is_currently_switching_ = false;
   waiting_on_thread_->switch_data_.should_switch_with_.store(nullptr, std::memory_order_relaxed);
