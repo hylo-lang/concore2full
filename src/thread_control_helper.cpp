@@ -38,7 +38,6 @@ struct thread_switch_data {
   //! The thread reclaimer that was on the other thread before the switch.
   thread_reclaimer* other_thread_reclaimer_{nullptr};
 
-
   //! Indicates if this thread should join the switch process initiated by the value stored in here.
   std::atomic<thread_switch_data*> should_switch_{nullptr};
 
@@ -157,7 +156,6 @@ bool thread_snapshot::wait_for_switch_start() {
 void thread_snapshot::perform_switch() {
   // Request a thread inversion. We might need to wait if our original thread is currently busy.
   (void)detail::callcc([this](detail::continuation_t c) -> detail::continuation_t {
-    auto* t = original_thread_;
     // Use the switch data from our thread.
     auto* switch_data = &tls_thread_info_.switch_data_;
     switch_data->original_thread_reclaimer_ = tls_thread_info_.thread_reclaimer_;
