@@ -39,7 +39,7 @@ struct thread_switch_data {
   thread_reclaimer* other_thread_reclaimer_{nullptr};
 
   //! Indicates if this thread should join the switch process initiated by the value stored in here.
-  std::atomic<thread_switch_data*> should_switch_{nullptr};
+  std::atomic<thread_info*> should_switch_with_{nullptr};
 
   /**
    * @brief Mark the beginning of switching the current control flow from `self` thread to `t`.
@@ -82,7 +82,7 @@ bool thread_switch_data::request_switch_to(thread_info* self, thread_info* t) {
 void thread_switch_data::switch_complete() {
   std::lock_guard<std::mutex> lock{g_thread_control_data.dependency_bottleneck_};
   is_currently_switching_ = false;
-  waiting_on_thread_->switch_data_.should_switch_.store(nullptr, std::memory_order_relaxed);
+  waiting_on_thread_->switch_data_.should_switch_with_.store(nullptr, std::memory_order_relaxed);
   waiting_on_thread_ = nullptr;
 }
 
@@ -96,15 +96,16 @@ void thread_control_helper::set_current_thread_reclaimer(thread_reclaimer* new_r
 
 void thread_control_helper::check_for_thread_inversion() {
   // Check if some other thread requested us to switch.
-  auto* switch_data = tls_thread_info_.switch_data_.should_switch_.load(std::memory_order_acquire);
-  if (switch_data) {
-    // The switch_data object will be stored on the originating thread.
-    (void)detail::callcc([switch_data](detail::continuation_t c) -> detail::continuation_t {
-      switch_data->to_switch_to_ = c;
-      auto next_for_us = std::exchange(switch_data->exit_, nullptr);
-      switch_data->other_thread_reclaimer_ = tls_thread_info_.thread_reclaimer_;
-      tls_thread_info_.thread_reclaimer_ = switch_data->original_thread_reclaimer_;
-      switch_data->waiting_semaphore_.release();
+  auto* first_thread =
+      tls_thread_info_.switch_data_.should_switch_with_.load(std::memory_order_acquire);
+  if (first_thread) {
+    // The switch data will be stored on the first thread.
+    (void)detail::callcc([first_thread](detail::continuation_t c) -> detail::continuation_t {
+      first_thread->switch_data_.to_switch_to_ = c;
+      auto next_for_us = std::exchange(first_thread->switch_data_.exit_, nullptr);
+      first_thread->switch_data_.other_thread_reclaimer_ = tls_thread_info_.thread_reclaimer_;
+      tls_thread_info_.thread_reclaimer_ = first_thread->switch_data_.original_thread_reclaimer_;
+      first_thread->switch_data_.waiting_semaphore_.release();
       return next_for_us;
     });
     // The originating thread will continue this control flow.
@@ -161,7 +162,8 @@ void thread_snapshot::perform_switch() {
     switch_data->original_thread_reclaimer_ = tls_thread_info_.thread_reclaimer_;
     switch_data->exit_ = c; // The orginal thread must switch to this.
     // TODO: fix race condition here; multiple threads may be trying to store at the same time
-    original_thread_->switch_data_.should_switch_.store(switch_data, std::memory_order_release);
+    original_thread_->switch_data_.should_switch_with_.store(&tls_thread_info_,
+                                                             std::memory_order_release);
     // Note: After this line, the other thread can anytime switch to the `exit_` continuation,
     // destryoing `this` pointer.
 
