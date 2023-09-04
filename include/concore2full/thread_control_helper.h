@@ -80,14 +80,6 @@ public:
   void revert();
 
 private:
-  friend class thread_control_helper;
-  struct switch_data;
-
-  //! Data for thread inversion.
-  //! When this is present, the thread that need to be reclaimed will perform the inversion.
-  //! Stored on the thread that is requesting the inversion.
-  std::atomic<switch_data*> should_switch_{nullptr};
-
   //! The previous thread snapshot this thread. Used to deal with cases of nested `sync_execute`
   //! calls.
   thread_snapshot* previous_{nullptr};
