@@ -18,16 +18,36 @@ static thread_control_data g_thread_control_data;
 
 struct thread_info;
 
-struct thread_switch_data {
+class thread_switch_data {
+public:
+  void originator_start(detail::continuation_t c) {
+    after_originator_ = c;
+    originator_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
+  }
+  detail::continuation_t originator_end() {
+    thread_control_helper::set_current_thread_reclaimer(secondary_reclaimer_);
+    return std::exchange(after_secondary_, nullptr);
+  }
+
+  void secondary_start(detail::continuation_t c) {
+    after_secondary_ = c;
+    secondary_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
+  }
+  detail::continuation_t secondary_end() {
+    thread_control_helper::set_current_thread_reclaimer(originator_reclaimer_);
+    return std::exchange(after_originator_, nullptr);
+  }
+
+private:
   //! The continuation for the originator control-flow; will be continued by the desired thread.
-  detail::continuation_t exit_{nullptr};
+  detail::continuation_t after_originator_{nullptr};
   //! The continuation for the other control-flow; the thread that originates the switch will
   //! continue on this.
-  detail::continuation_t to_switch_to_{nullptr};
+  detail::continuation_t after_secondary_{nullptr};
   //! The thread reclaimer that was on the original thread before the switch.
-  thread_reclaimer* original_thread_reclaimer_{nullptr};
+  thread_reclaimer* originator_reclaimer_{nullptr};
   //! The thread reclaimer that was on the other thread before the switch.
-  thread_reclaimer* other_thread_reclaimer_{nullptr};
+  thread_reclaimer* secondary_reclaimer_{nullptr};
 };
 
 //! Data used for switching control flows between threads.
@@ -105,11 +125,11 @@ void thread_control_helper::check_for_thread_inversion() {
   if (first_thread) {
     // The switch data will be stored on the first thread.
     (void)detail::callcc([first_thread](detail::continuation_t c) -> detail::continuation_t {
-      first_thread->switch_data_.to_switch_to_ = c;
-      auto next_for_us = std::exchange(first_thread->switch_data_.exit_, nullptr);
-      first_thread->switch_data_.other_thread_reclaimer_ = tls_thread_info_.thread_reclaimer_;
-      tls_thread_info_.thread_reclaimer_ = first_thread->switch_data_.original_thread_reclaimer_;
+      first_thread->switch_data_.secondary_start(c);
+      auto next_for_us = first_thread->switch_data_.secondary_end();
+
       first_thread->switch_control_.waiting_semaphore_.release();
+
       return next_for_us;
     });
     // The originating thread will continue this control flow.
@@ -163,13 +183,12 @@ void thread_snapshot::perform_switch() {
   (void)detail::callcc([this](detail::continuation_t c) -> detail::continuation_t {
     // Use the switch data from our thread.
     auto* switch_data = &tls_thread_info_.switch_data_;
-    switch_data->original_thread_reclaimer_ = tls_thread_info_.thread_reclaimer_;
-    switch_data->exit_ = c; // The orginal thread must switch to this.
+    switch_data->originator_start(c);
     // TODO: fix race condition here; multiple threads may be trying to store at the same time
     original_thread_->switch_control_.should_switch_with_.store(&tls_thread_info_,
                                                                 std::memory_order_release);
-    // Note: After this line, the other thread can anytime switch to the `exit_` continuation,
-    // destryoing `this` pointer.
+    // Note: After this line, the other thread can anytime switch to the `after_originator_`
+    // continuation, destryoing `this` pointer.
 
     // If this thread is controlled by a thread pool which has a reclaimer registered, tell it to
     // start reclaiming.
@@ -182,11 +201,10 @@ void thread_snapshot::perform_switch() {
 
     // The thread switch is complete.
     // TODO: check for race conditions
-    tls_thread_info_.thread_reclaimer_ = switch_data->other_thread_reclaimer_;
     tls_thread_info_.switch_control_.switch_complete();
 
     // Switch to the continuation provided by our original thread.
-    return std::exchange(switch_data->to_switch_to_, nullptr);
+    return tls_thread_info_.switch_data_.originator_end();
   });
   // We resume here on the original thread.
   assert(original_thread_ == &tls_thread_info_);
