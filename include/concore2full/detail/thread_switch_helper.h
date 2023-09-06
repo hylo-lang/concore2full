@@ -2,6 +2,8 @@
 
 #include "core_types.h"
 
+#include "concore2full/thread_control_helper.h"
+
 namespace concore2full {
 class thread_reclaimer;
 }
@@ -21,11 +23,8 @@ namespace concore2full::detail {
  * "secondary" thread/control-flow.
  *
  * Both control-flows will call this when they enter the switch process, and when they need to leave
- * the switch process. The flow will look like:
- *  - originator start switching
- *  - secondary starts switching
- *  - secondary ends switching
- *  - originator ends switching
+ * the switch process. Both control-flows should call the `_start` methods before any of the `_end`
+ * methods.
  *
  * @sa thread_reclaimer
  */

@@ -2,6 +2,7 @@
 
 #include "concore2full/detail/callcc.h"
 #include "concore2full/detail/task_base.h"
+#include "concore2full/detail/thread_switch_helper.h"
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/thread_control_helper.h"
 
@@ -52,9 +53,9 @@ public:
 private:
   enum class sync_state {
     both_working,
-    first_finishing,
-    first_finished,
-    second_finished,
+    main_finishing,
+    main_finished,
+    async_finished,
   };
 
   /// The function that needs to be executed in the spawned work.
@@ -65,86 +66,71 @@ private:
   detail::continuation_t cont_;
   /// The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
-  /// Continuation pointing to the code after the `await`, on the main thread of execution.
-  detail::continuation_t main_cont_;
-  /// Continuation pointing to the end of the thread.
-  detail::continuation_t thread_cont_;
+  //! Data used to switch threads between control-flows.
+  detail::thread_switch_helper switch_data_;
   /// A snaphot of the profilng zones at that spawn point.
   profiling::zone_stack_snapshot zones_;
-  //! The thread reclaimer object that was found on the main thread.
-  thread_reclaimer* main_reclaimer_{nullptr};
-  //! The thread reclaimer object that was found on the spawned thread.
-  thread_reclaimer* spawned_reclaimer_{nullptr};
 
   /// @brief  Called when the async work is completed
   /// @return The continuation that the work coroutine needs to do next (if there is any).
-  detail::continuation_t on_async_complete() {
+  detail::continuation_t on_async_complete(detail::continuation_t c) {
     sync_state expected{sync_state::both_working};
-    if (sync_state_.compare_exchange_strong(expected, sync_state::first_finished)) {
+    if (sync_state_.compare_exchange_strong(expected, sync_state::async_finished)) {
       // We are first to arrive at completion.
-      // There is nothing for this thread to do here, we can safely exit.
-      return nullptr;
+      // We won't need any thread switch, so we can safely exit.
+      // Return the original continuation.
+      return c;
     } else {
+      // We are the last to arrive at completion, and we need a thread switch.
+
       // If the main thread is currently finishing, wait for it to finish.
-      while (sync_state_.load() != sync_state::first_finished)
+      while (sync_state_.load() != sync_state::main_finished)
         ; // wait
           // TODO: exponential backoff
 
-      // We are the last to arrive at completion.
-
-      // Swap the thread reclaimer object: spawned <- main thread reclaimer
-      thread_control_helper::set_current_thread_reclaimer(this->main_reclaimer_);
-
-      // The main thread set the continuation point; we need to jump there.
-      return std::exchange(main_cont_, nullptr);
+      return switch_data_.secondary_end();
     }
   }
 
   /// Called when the main thread of execution completes.
   void on_main_complete() {
-    auto c = detail::callcc([this](detail::continuation_t await_cc) -> detail::continuation_t {
-      sync_state expected{sync_state::both_working};
-      if (sync_state_.compare_exchange_strong(expected, sync_state::first_finishing)) {
-        // We are first to arrive at completion.
-        // Store the continuation to move past await.
-        this->main_cont_ = await_cc;
-
-        // Swap the thread reclaimer object: main <- spawned thread reclaimer
-        thread_control_helper::set_current_thread_reclaimer(this->spawned_reclaimer_);
+    sync_state expected{sync_state::both_working};
+    if (sync_state_.compare_exchange_strong(expected, sync_state::main_finishing)) {
+      // The main thread is first to finish; we need to start switching threads.
+      auto c = detail::callcc([this](detail::continuation_t await_cc) -> detail::continuation_t {
+        this->switch_data_.originator_start(await_cc);
 
         // We are done "finishing"
-        sync_state_ = sync_state::first_finished;
-        // TODO: thread_cont_ may not be set yet; there is a race condition
-        return std::exchange(this->thread_cont_, nullptr);
-      } else {
-        // The async thread finished; we can continue directly.
-        return await_cc;
-      }
-    });
-    (void)c;
+        sync_state_ = sync_state::main_finished;
+        // TODO: thread_cont_ may not be set yet (i.e., thread hasn't been started); there is a race
+        // condition
+        // TODO: In that case, maybe it's better to just execute the command here directly, to avoid
+        // context switch.
+        return this->switch_data_.originator_end();
+      });
+      (void)c;
+    } else {
+      // The async thread finished; we can continue directly, no need to switch threads.
+      // We are done "finishing"
+      sync_state_ = sync_state::main_finished;
+    }
     // We are here if both threads finish; but we don't know which thread finished last and is
     // currently executing this.
   }
 
   void execute(int) noexcept {
     profiling::duplicate_zones_stack scoped_zones_stack{zones_};
-    spawned_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
     cont_ = detail::callcc([this](detail::continuation_t thread_cont) -> detail::continuation_t {
-      thread_cont_ = thread_cont;
-
+      // Assume there will be a thread switch and store required objects.
+      switch_data_.secondary_start(thread_cont);
       res_ = f_();
-      auto c = on_async_complete();
-      if (c) {
-        c = detail::resume(c);
-      }
-      return std::exchange(thread_cont_, nullptr);
+      return on_async_complete(thread_cont);
     });
   }
 
   template <typename F> friend auto spawn(F&& f);
 
   spawn_state(Fn&& f) : f_(std::forward<Fn>(f)) {
-    main_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
     global_thread_pool().enqueue(this);
   }
 };
