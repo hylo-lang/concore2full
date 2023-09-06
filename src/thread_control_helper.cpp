@@ -1,6 +1,7 @@
 #include <concore2full/thread_control_helper.h>
 
 #include <concore2full/detail/callcc.h>
+#include <concore2full/detail/thread_switch_helper.h>
 
 #include <mutex>
 #include <semaphore>
@@ -17,38 +18,6 @@ struct thread_control_data {
 static thread_control_data g_thread_control_data;
 
 struct thread_info;
-
-class thread_switch_data {
-public:
-  void originator_start(detail::continuation_t c) {
-    after_originator_ = c;
-    originator_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
-  }
-  detail::continuation_t originator_end() {
-    thread_control_helper::set_current_thread_reclaimer(secondary_reclaimer_);
-    return std::exchange(after_secondary_, nullptr);
-  }
-
-  void secondary_start(detail::continuation_t c) {
-    after_secondary_ = c;
-    secondary_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
-  }
-  detail::continuation_t secondary_end() {
-    thread_control_helper::set_current_thread_reclaimer(originator_reclaimer_);
-    return std::exchange(after_originator_, nullptr);
-  }
-
-private:
-  //! The continuation for the originator control-flow; will be continued by the desired thread.
-  detail::continuation_t after_originator_{nullptr};
-  //! The continuation for the other control-flow; the thread that originates the switch will
-  //! continue on this.
-  detail::continuation_t after_secondary_{nullptr};
-  //! The thread reclaimer that was on the original thread before the switch.
-  thread_reclaimer* originator_reclaimer_{nullptr};
-  //! The thread reclaimer that was on the other thread before the switch.
-  thread_reclaimer* secondary_reclaimer_{nullptr};
-};
 
 //! Data used for switching control flows between threads.
 struct thread_switch_control {
@@ -85,7 +54,7 @@ struct thread_info {
   //! The data used for swtiching control flow with other threads.
   thread_switch_control switch_control_;
   //! Data used to switch threads between control-flows.
-  thread_switch_data switch_data_;
+  detail::thread_switch_helper switch_data_;
 };
 
 //! The data associated with each thread.
