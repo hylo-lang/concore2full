@@ -47,6 +47,8 @@ TEST_CASE("thread_pool can execute tasks", "[thread_pool]") {
 TEST_CASE("thread_pool can execute two tasks in parallel", "[thread_pool]") {
   // Arrange
   concore2full::thread_pool sut;
+  if (sut.available_parallelism() < 2)
+    return;
   std::latch l{2};
   bool called1{false};
   bool called2{false};
