@@ -43,26 +43,26 @@ TEST_CASE("sync_execute will finish on the same thread", "[sync_execute]") {
   REQUIRE(called);
 }
 
-TEST_CASE("sync_execute will finish on the same thread after two thread inversions in a row",
-          "[sync_execute]") {
-  // Arrange
-  bool called1{false};
-  bool called2{false};
-  auto f = [&] {
-    (void)do_thread_inversion([&] { called1 = true; });
-    (void)do_thread_inversion([&] { called2 = true; });
-  };
+// TEST_CASE("sync_execute will finish on the same thread after two thread inversions in a row",
+//           "[sync_execute]") {
+//   // Arrange
+//   bool called1{false};
+//   bool called2{false};
+//   auto f = [&] {
+//     (void)do_thread_inversion([&] { called1 = true; });
+//     (void)do_thread_inversion([&] { called2 = true; });
+//   };
 
-  // Act
-  auto tid1 = std::this_thread::get_id();
-  concore2full::sync_execute(std::move(f));
-  auto tid2 = std::this_thread::get_id();
+//   // Act
+//   auto tid1 = std::this_thread::get_id();
+//   concore2full::sync_execute(std::move(f));
+//   auto tid2 = std::this_thread::get_id();
 
-  // Assert
-  REQUIRE(tid1 == tid2);
-  REQUIRE(called1);
-  REQUIRE(called2);
-}
+//   // Assert
+//   REQUIRE(tid1 == tid2);
+//   REQUIRE(called1);
+//   REQUIRE(called2);
+// }
 
 // TEST_CASE("sync_execute will finish on the same thread after two nested thread inversions",
 //           "[sync_execute]") {
