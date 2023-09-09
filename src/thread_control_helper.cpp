@@ -1,4 +1,5 @@
 #include <concore2full/thread_control_helper.h>
+#include <concore2full/thread_reclaimer.h>
 
 #include <concore2full/detail/callcc.h>
 #include <concore2full/detail/thread_switch_helper.h>
