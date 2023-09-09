@@ -2,20 +2,15 @@
 
 namespace concore2full::detail {
 
-//! Structure holding global data needed for thread control.
-struct thread_control_data {
-  std::mutex dependency_bottleneck_;
-};
-
-//! A single instance of `thread_control_data`.
-static thread_control_data g_thread_control_data;
-
 //! The data associated with each thread.
 thread_local thread_info tls_thread_info;
 
+//! Global mutex to track dependencies between threads when requesting thread switch.
+static std::mutex g_thread_dependency_bottleneck;
+
 bool thread_switch_control::request_switch_to(thread_info* self, thread_info* t) {
   assert(self != t);
-  std::lock_guard<std::mutex> lock{g_thread_control_data.dependency_bottleneck_};
+  std::lock_guard<std::mutex> lock{g_thread_dependency_bottleneck};
   if (!t->switch_control_.is_currently_switching_) {
     // Mark the start of the switch.
     is_currently_switching_ = true;
@@ -26,7 +21,7 @@ bool thread_switch_control::request_switch_to(thread_info* self, thread_info* t)
   }
 }
 void thread_switch_control::switch_complete() {
-  std::lock_guard<std::mutex> lock{g_thread_control_data.dependency_bottleneck_};
+  std::lock_guard<std::mutex> lock{g_thread_dependency_bottleneck};
   is_currently_switching_ = false;
   waiting_on_thread_->switch_control_.should_switch_with_.store(nullptr, std::memory_order_relaxed);
   waiting_on_thread_ = nullptr;
