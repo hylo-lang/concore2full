@@ -16,12 +16,12 @@ namespace concore2full {
  * reclamation of the thread.
  *
  * Thread pools need to create such an object for each thread, and register it through:
- *  thread_control_helper::set_current_thread_reclaimer()
+ *  this_thread::set_thread_reclaimer()
  *
  * After `start_reclaiming()` is called, the corresponding thread is expected to call
- * `thread_control_helper::check_for_thread_inversion()`.
+ * `this_thread::inversion_checkpoint()`.
  *
- * @sa thread_control_helper
+ * @sa this_thread
  */
 class thread_reclaimer {
 public:

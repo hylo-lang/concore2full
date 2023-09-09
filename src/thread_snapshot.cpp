@@ -31,7 +31,7 @@ bool thread_snapshot::wait_for_switch_start() {
     } else {
       // We cannot switch at this moment.
       // Check if another thread requested a switch from us.
-      thread_control_helper::check_for_thread_inversion();
+      this_thread::inversion_checkpoint();
       // Now, this function may return on a different thread; check if we still need to switch.
       if (&detail::get_current_thread_info() == original_thread_) {
         return false;

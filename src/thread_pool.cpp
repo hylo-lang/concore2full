@@ -1,6 +1,6 @@
 #include "concore2full/thread_pool.h"
 #include "concore2full/profiling.h"
-#include "concore2full/thread_control_helper.h"
+#include "concore2full/this_thread.h"
 #include "concore2full/thread_reclaimer.h"
 #include "concore2full/thread_snapshot.h"
 
@@ -97,7 +97,7 @@ detail::task_base* thread_pool::thread_data::pop() noexcept {
   while (tasks_.empty()) {
     if (should_stop_)
       return nullptr;
-    thread_control_helper::check_for_thread_inversion();
+    this_thread::inversion_checkpoint();
     cv_.wait(lock);
   }
   return tasks_.pop_front();
@@ -115,7 +115,7 @@ void thread_pool::thread_main(int index) noexcept {
     void start_reclaiming() override { cur_thread_data_->wakeup(); }
   };
   my_thread_reclaimer this_thread_reclaimer{&work_data_[index]};
-  thread_control_helper::set_current_thread_reclaimer(&this_thread_reclaimer);
+  this_thread::set_thread_reclaimer(&this_thread_reclaimer);
 
   // We need to exit on the same thread.
   thread_snapshot t;
@@ -123,7 +123,7 @@ void thread_pool::thread_main(int index) noexcept {
   int thread_count = threads_.size();
   while (true) {
     // First check if we need to restore this thread to somebody else.
-    thread_control_helper::check_for_thread_inversion();
+    this_thread::inversion_checkpoint();
 
     detail::task_base* to_execute{nullptr};
     int current_index = 0;

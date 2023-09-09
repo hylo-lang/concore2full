@@ -4,7 +4,7 @@
 #include "concore2full/detail/task_base.h"
 #include "concore2full/detail/thread_switch_helper.h"
 #include "concore2full/global_thread_pool.h"
-#include "concore2full/thread_control_helper.h"
+#include "concore2full/this_thread.h"
 
 namespace concore2full {
 
@@ -130,9 +130,7 @@ private:
 
   template <typename F> friend auto spawn(F&& f);
 
-  spawn_state(Fn&& f) : f_(std::forward<Fn>(f)) {
-    global_thread_pool().enqueue(this);
-  }
+  spawn_state(Fn&& f) : f_(std::forward<Fn>(f)) { global_thread_pool().enqueue(this); }
 };
 
 /// @brief  Spawn work with the default scheduler

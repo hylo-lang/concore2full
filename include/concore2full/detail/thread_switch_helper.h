@@ -2,7 +2,7 @@
 
 #include "core_types.h"
 
-#include "concore2full/thread_control_helper.h"
+#include "concore2full/this_thread.h"
 
 namespace concore2full {
 class thread_reclaimer;
@@ -33,22 +33,22 @@ public:
   //! Called by the originator control-flow to start the switch.
   void originator_start(detail::continuation_t c) {
     after_originator_ = c;
-    originator_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
+    originator_reclaimer_ = this_thread::get_thread_reclaimer();
   }
   //! Called by the originator control-flow to finish the switch.
   detail::continuation_t originator_end() {
-    thread_control_helper::set_current_thread_reclaimer(secondary_reclaimer_);
+    this_thread::set_thread_reclaimer(secondary_reclaimer_);
     return std::exchange(after_secondary_, nullptr);
   }
 
   //! Called by the secondary control-flow when entering the switch process.
   void secondary_start(detail::continuation_t c) {
     after_secondary_ = c;
-    secondary_reclaimer_ = thread_control_helper::get_current_thread_reclaimer();
+    secondary_reclaimer_ = this_thread::get_thread_reclaimer();
   }
   //! Called by the secondary control-flow when exiting the switch process.
   detail::continuation_t secondary_end() {
-    thread_control_helper::set_current_thread_reclaimer(originator_reclaimer_);
+    this_thread::set_thread_reclaimer(originator_reclaimer_);
     return std::exchange(after_originator_, nullptr);
   }
 
