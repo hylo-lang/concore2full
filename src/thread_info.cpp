@@ -11,7 +11,7 @@ struct thread_control_data {
 static thread_control_data g_thread_control_data;
 
 //! The data associated with each thread.
-thread_local thread_info tls_thread_info_;
+thread_local thread_info tls_thread_info;
 
 bool thread_switch_control::request_switch_to(thread_info* self, thread_info* t) {
   assert(self != t);
@@ -31,5 +31,7 @@ void thread_switch_control::switch_complete() {
   waiting_on_thread_->switch_control_.should_switch_with_.store(nullptr, std::memory_order_relaxed);
   waiting_on_thread_ = nullptr;
 }
+
+thread_info& get_current_thread_info() { return tls_thread_info; }
 
 } // namespace concore2full::detail

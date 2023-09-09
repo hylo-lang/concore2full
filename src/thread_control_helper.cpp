@@ -13,17 +13,17 @@
 namespace concore2full {
 
 thread_reclaimer* thread_control_helper::get_current_thread_reclaimer() {
-  return detail::tls_thread_info_.thread_reclaimer_;
+  return detail::get_current_thread_info().thread_reclaimer_;
 }
 
 void thread_control_helper::set_current_thread_reclaimer(thread_reclaimer* new_reclaimer) {
-  detail::tls_thread_info_.thread_reclaimer_ = new_reclaimer;
+  detail::get_current_thread_info().thread_reclaimer_ = new_reclaimer;
 }
 
 void thread_control_helper::check_for_thread_inversion() {
   // Check if some other thread requested us to switch.
-  auto* first_thread =
-      detail::tls_thread_info_.switch_control_.should_switch_with_.load(std::memory_order_acquire);
+  auto* first_thread = detail::get_current_thread_info().switch_control_.should_switch_with_.load(
+      std::memory_order_acquire);
   if (first_thread) {
     // The switch data will be stored on the first thread.
     (void)detail::callcc([first_thread](detail::continuation_t c) -> detail::continuation_t {
@@ -38,11 +38,11 @@ void thread_control_helper::check_for_thread_inversion() {
   }
 }
 
-thread_snapshot::thread_snapshot() { original_thread_ = &detail::tls_thread_info_; }
+thread_snapshot::thread_snapshot() { original_thread_ = &detail::get_current_thread_info(); }
 
 void thread_snapshot::revert() {
   // Are we on the same thread?
-  if (original_thread_ == &detail::tls_thread_info_) {
+  if (original_thread_ == &detail::get_current_thread_info()) {
     // Good. No waiting needs to happen.
   } else {
     // Wait until we can start the switch.
@@ -55,7 +55,7 @@ void thread_snapshot::revert() {
 
 bool thread_snapshot::wait_for_switch_start() {
   while (true) {
-    auto* cur_thread = &detail::tls_thread_info_;
+    auto* cur_thread = &detail::get_current_thread_info();
     if (cur_thread->switch_control_.request_switch_to(cur_thread, original_thread_)) {
       // We started the switch process.
       return true;
@@ -64,7 +64,7 @@ bool thread_snapshot::wait_for_switch_start() {
       // Check if another thread requested a switch from us.
       thread_control_helper::check_for_thread_inversion();
       // Now, this function may return on a different thread; check if we still need to switch.
-      if (&detail::tls_thread_info_ == original_thread_) {
+      if (&detail::get_current_thread_info() == original_thread_) {
         return false;
       }
       // If we need to switch, introduce a small pause, so that we don't consume the CPU while
@@ -78,10 +78,11 @@ void thread_snapshot::perform_switch() {
   // Request a thread inversion. We might need to wait if our original thread is currently busy.
   (void)detail::callcc([this](detail::continuation_t c) -> detail::continuation_t {
     // Use the switch data from our thread.
-    auto* switch_data = &detail::tls_thread_info_.switch_data_;
+    auto& cur_thread = detail::get_current_thread_info();
+    auto* switch_data = &cur_thread.switch_data_;
     switch_data->originator_start(c);
     // TODO: fix race condition here; multiple threads may be trying to store at the same time
-    original_thread_->switch_control_.should_switch_with_.store(&detail::tls_thread_info_,
+    original_thread_->switch_control_.should_switch_with_.store(&cur_thread,
                                                                 std::memory_order_release);
     // Note: After this line, the other thread can anytime switch to the `after_originator_`
     // continuation, destryoing `this` pointer.
@@ -93,17 +94,17 @@ void thread_snapshot::perform_switch() {
       reclaimer->start_reclaiming();
 
     // Block until the original thread can perform the thread switch
-    detail::tls_thread_info_.switch_control_.waiting_semaphore_.acquire();
+    cur_thread.switch_control_.waiting_semaphore_.acquire();
 
     // The thread switch is complete.
     // TODO: check for race conditions
-    detail::tls_thread_info_.switch_control_.switch_complete();
+    cur_thread.switch_control_.switch_complete();
 
     // Switch to the continuation provided by our original thread.
-    return detail::tls_thread_info_.switch_data_.originator_end();
+    return cur_thread.switch_data_.originator_end();
   });
   // We resume here on the original thread.
-  assert(original_thread_ == &detail::tls_thread_info_);
+  assert(original_thread_ == &detail::get_current_thread_info());
 }
 
 } // namespace concore2full

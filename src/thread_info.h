@@ -44,8 +44,7 @@ struct thread_info {
   detail::thread_switch_helper switch_data_;
 };
 
-//! The data associated with each thread.
-extern thread_local thread_info tls_thread_info_;
-
+//! Get the data associated with the current thread.
+thread_info& get_current_thread_info();
 
 } // namespace concore2full::detail
