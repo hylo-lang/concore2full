@@ -1,6 +1,6 @@
 #pragma once
 
-#include <concore2full/thread_control_helper.h>
+#include <concore2full/thread_snapshot.h>
 
 #include <concepts>
 
