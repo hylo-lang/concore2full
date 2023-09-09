@@ -49,8 +49,6 @@ struct thread_switch_control {
 struct thread_info {
   //! The object that needs to be notified when we want to switch control flow with another thread.
   thread_reclaimer* thread_reclaimer_{nullptr};
-  //! The last snapshot object we have on our current stack.
-  thread_snapshot* last_snapshot_{nullptr};
   //! The data used for swtiching control flow with other threads.
   thread_switch_control switch_control_;
   //! Data used to switch threads between control-flows.
@@ -105,17 +103,12 @@ void thread_control_helper::check_for_thread_inversion() {
   }
 }
 
-thread_snapshot::thread_snapshot() {
-  previous_ = tls_thread_info_.last_snapshot_;
-  tls_thread_info_.last_snapshot_ = this;
-  original_thread_ = &tls_thread_info_;
-}
-thread_snapshot::~thread_snapshot() { tls_thread_info_.last_snapshot_ = previous_; }
+thread_snapshot::thread_snapshot() { original_thread_ = &tls_thread_info_; }
 
 void thread_snapshot::revert() {
   // Are we on the same thread?
   thread_info* cur_thread = &tls_thread_info_;
-  if (cur_thread->last_snapshot_ == this) {
+  if (cur_thread == original_thread_) {
     // Good. No waiting needs to happen.
   } else {
     // Wait until we can start the switch.

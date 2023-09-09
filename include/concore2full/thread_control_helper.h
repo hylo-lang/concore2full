@@ -69,21 +69,23 @@ public:
   static void check_for_thread_inversion();
 };
 
+/**
+ * @brief A snapshot of the currrent thread.
+ *
+ * Keeps track of the current thread. We have the ability to get back to the thread that was used
+ * when the constructor was called.
+ */
 class thread_snapshot {
 public:
   //! Constructor. Gets information about the currently working thread.
   thread_snapshot();
   //! Destructor.
-  ~thread_snapshot();
+  ~thread_snapshot() = default;
 
   //! Get back to the thread on which the constructor was called.
   void revert();
 
 private:
-  //! The previous thread snapshot this thread. Used to deal with cases of nested `sync_execute`
-  //! calls.
-  thread_snapshot* previous_{nullptr};
-
   //! The original thread.
   thread_info* original_thread_{nullptr};
 
