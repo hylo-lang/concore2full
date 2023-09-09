@@ -4,7 +4,9 @@
 
 namespace concore2full {
 
+namespace detail {
 struct thread_info;
+}
 class thread_reclaimer;
 
 /**
@@ -62,7 +64,7 @@ public:
 
 private:
   //! The original thread.
-  thread_info* original_thread_{nullptr};
+  detail::thread_info* original_thread_{nullptr};
 
   /**
    * @brief Wait until we can start the switch of control flows

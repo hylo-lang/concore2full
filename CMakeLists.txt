@@ -6,6 +6,7 @@ find_package(context_core_api CONFIG REQUIRED)
 set(Sources
 src/profiling.cpp
 src/thread_pool.cpp
+src/thread_info.cpp
 src/thread_control_helper.cpp
 )
 
