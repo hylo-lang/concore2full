@@ -66,6 +66,8 @@ private:
   detail::continuation_t cont_;
   /// The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
+  //! Indicates that the async processing has started (continuation is set).
+  std::atomic<bool> async_started_{false};
   //! Data used to switch threads between control-flows.
   detail::thread_switch_helper switch_data_;
   /// A snaphot of the profilng zones at that spawn point.
@@ -99,13 +101,11 @@ private:
       // The main thread is first to finish; we need to start switching threads.
       auto c = detail::callcc([this](detail::continuation_t await_cc) -> detail::continuation_t {
         this->switch_data_.originator_start(await_cc);
-
-        // We are done "finishing"
+        // We are done "finishing".
         sync_state_ = sync_state::main_finished;
-        // TODO: thread_cont_ may not be set yet (i.e., thread hasn't been started); there is a race
-        // condition
-        // TODO: In that case, maybe it's better to just execute the command here directly, to avoid
-        // context switch.
+        // Ensure that we started the async work (and the continuation is set).
+        async_started_.wait(false, std::memory_order_acquire);
+        // Complete the thread switching.
         return this->switch_data_.originator_end();
       });
       (void)c;
@@ -123,7 +123,12 @@ private:
     cont_ = detail::callcc([this](detail::continuation_t thread_cont) -> detail::continuation_t {
       // Assume there will be a thread switch and store required objects.
       switch_data_.secondary_start(thread_cont);
-      res_ = f_();
+      // Signal the fact that we have started (and the continuation is properly stored).
+      async_started_.store(true, std::memory_order_release);
+      async_started_.notify_one();
+      // Actually execute the given work.
+      res_ = std::invoke(std::forward<Fn>(f_));
+      // Complete the async processing.
       return on_async_complete(thread_cont);
     });
   }
