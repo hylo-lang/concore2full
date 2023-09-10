@@ -84,10 +84,10 @@ private:
       // We are the last to arrive at completion, and we need a thread switch.
 
       // If the main thread is currently finishing, wait for it to finish.
-      while (sync_state_.load() != sync_state::main_finished)
-        ; // wait
-          // TODO: exponential backoff
+      // We need the main thread to properly call `originator_start`.
+      sync_state_.wait(sync_state::main_finishing, std::memory_order_acquire);
 
+      // Finish the thread switch.
       return switch_data_.secondary_end();
     }
   }
@@ -100,7 +100,8 @@ private:
       auto c = detail::callcc([this](detail::continuation_t await_cc) -> detail::continuation_t {
         this->switch_data_.originator_start(await_cc);
         // We are done "finishing".
-        sync_state_ = sync_state::main_finished;
+        sync_state_.store(sync_state::main_finished, std::memory_order_release);
+        sync_state_.notify_one();
         // Ensure that we started the async work (and the continuation is set).
         async_started_.wait(false, std::memory_order_acquire);
         // Complete the thread switching.
@@ -109,11 +110,8 @@ private:
       (void)c;
     } else {
       // The async thread finished; we can continue directly, no need to switch threads.
-      // We are done "finishing"
-      sync_state_ = sync_state::main_finished;
     }
-    // We are here if both threads finish; but we don't know which thread finished last and is
-    // currently executing this.
+    // This point will be executed by the thread that finishes last.
   }
 
   void execute(int) noexcept {
