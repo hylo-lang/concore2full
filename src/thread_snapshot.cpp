@@ -55,6 +55,7 @@ void thread_snapshot::perform_switch() {
     // the same time. Because of the structured way we allow concurrency, this shouldn't happen.
     auto old = original_thread_->switch_control_.should_switch_with_.exchange(&cur_thread);
     assert(old == nullptr);
+    (void)old;
     // Note: After this line, the other thread can anytime continue with the control flow,
     // destryoing `this` pointer.
 
