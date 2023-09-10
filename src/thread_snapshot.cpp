@@ -50,11 +50,13 @@ void thread_snapshot::perform_switch() {
     auto& cur_thread = detail::get_current_thread_info();
     auto* switch_data = &cur_thread.switch_data_;
     switch_data->originator_start(c);
-    // TODO: fix race condition here; multiple threads may be trying to store at the same time
-    original_thread_->switch_control_.should_switch_with_.store(&cur_thread,
-                                                                std::memory_order_release);
-    // Note: After this line, the other thread can anytime switch to the `after_originator_`
-    // continuation, destryoing `this` pointer.
+    // NOTE: theoretically there is a race condition here: two threads might request to switch back
+    // to the same thred. That is, two control-flows will desire to continue on the same thread at
+    // the same time. Because of the structured way we allow concurrency, this shouldn't happen.
+    auto old = original_thread_->switch_control_.should_switch_with_.exchange(&cur_thread);
+    assert(old == nullptr);
+    // Note: After this line, the other thread can anytime continue with the control flow,
+    // destryoing `this` pointer.
 
     // If this thread is controlled by a thread pool which has a reclaimer registered, tell it to
     // start reclaiming.
