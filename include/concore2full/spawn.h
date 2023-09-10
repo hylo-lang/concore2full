@@ -62,8 +62,6 @@ private:
   Fn f_;
   /// The location where we need to store the result
   res_t res_;
-  /// TODO: check if we can remove this.
-  detail::continuation_t cont_;
   /// The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
   //! Indicates that the async processing has started (continuation is set).
@@ -120,7 +118,7 @@ private:
 
   void execute(int) noexcept {
     profiling::duplicate_zones_stack scoped_zones_stack{zones_};
-    cont_ = detail::callcc([this](detail::continuation_t thread_cont) -> detail::continuation_t {
+    (void)detail::callcc([this](detail::continuation_t thread_cont) -> detail::continuation_t {
       // Assume there will be a thread switch and store required objects.
       switch_data_.secondary_start(thread_cont);
       // Signal the fact that we have started (and the continuation is properly stored).
