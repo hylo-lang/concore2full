@@ -98,6 +98,10 @@ private:
      */
     [[nodiscard]] detail::task_base* pop() noexcept;
 
+    //! Wake up the worker thread.
+    //! This is needed in the case that the current thread needs to be reclaimed.
+    void wakeup() noexcept;
+
   private:
     //! Mutex used to protect the access to the task queue.
     std::mutex bottleneck_;

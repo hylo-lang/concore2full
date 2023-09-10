@@ -1,5 +1,12 @@
 #include "concore2full/thread_pool.h"
 #include "concore2full/profiling.h"
+#include "concore2full/this_thread.h"
+#include "concore2full/thread_reclaimer.h"
+#include "concore2full/thread_snapshot.h"
+
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 namespace concore2full {
 
@@ -90,16 +97,34 @@ detail::task_base* thread_pool::thread_data::pop() noexcept {
   while (tasks_.empty()) {
     if (should_stop_)
       return nullptr;
+    this_thread::inversion_checkpoint();
     cv_.wait(lock);
   }
   return tasks_.pop_front();
 }
+void thread_pool::thread_data::wakeup() noexcept { cv_.notify_one(); }
+
 void thread_pool::thread_main(int index) noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
   zone.set_value(index);
 
+  // Register a thread_reclaimer object
+  struct my_thread_reclaimer : thread_reclaimer {
+    thread_data* cur_thread_data_;
+    explicit my_thread_reclaimer(thread_data* t) : cur_thread_data_(t) {}
+    void start_reclaiming() override { cur_thread_data_->wakeup(); }
+  };
+  my_thread_reclaimer this_thread_reclaimer{&work_data_[index]};
+  this_thread::set_thread_reclaimer(&this_thread_reclaimer);
+
+  // We need to exit on the same thread.
+  thread_snapshot t;
+
   int thread_count = threads_.size();
   while (true) {
+    // First check if we need to restore this thread to somebody else.
+    this_thread::inversion_checkpoint();
+
     detail::task_base* to_execute{nullptr};
     int current_index = 0;
 
@@ -125,6 +150,9 @@ void thread_pool::thread_main(int index) noexcept {
     profiling::zone zone2{CURRENT_LOCATION_N("execute")};
     to_execute->execute(current_index);
   }
+
+  // Ensure we finish on the same thread
+  t.revert();
 }
 
 } // namespace concore2full

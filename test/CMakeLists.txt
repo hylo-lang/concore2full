@@ -6,6 +6,7 @@ set(sourceFiles
 "test_callcc.cpp"
 "test_spawn.cpp"
 "test_thread_pool.cpp"
+"test_sync_execute.cpp"
 )
 
 find_package(Catch2 REQUIRED CONFIG)
@@ -21,4 +22,4 @@ set_property(TARGET test.concore2full PROPERTY COMPILE_WARNING_AS_ERROR ON)
 # Discover the Catch2 test built by the application
 include(CTest)
 include(Catch)
-catch_discover_tests(test.concore2full)
+catch_discover_tests(test.concore2full PROPERTIES TIMEOUT 30)
