@@ -23,7 +23,6 @@ bool thread_switch_control::request_switch_to(thread_info* self, thread_info* t)
 void thread_switch_control::switch_complete() {
   std::lock_guard<std::mutex> lock{g_thread_dependency_bottleneck};
   is_currently_switching_ = false;
-  waiting_on_thread_->switch_control_.should_switch_with_.store(nullptr, std::memory_order_relaxed);
   waiting_on_thread_ = nullptr;
 }
 
