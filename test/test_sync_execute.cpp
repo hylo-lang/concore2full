@@ -167,3 +167,23 @@ TEST_CASE("nested sync_execute: thread inversion + simple + thread inversion", "
   REQUIRE(called2);
   REQUIRE(called3);
 }
+
+TEST_CASE("sync_execute can return a value", "[sync_execute]") {
+  // Act
+  auto r = concore2full::sync_execute([&] { return 13; });
+
+  // Assert
+  REQUIRE(r == 13);
+}
+
+TEST_CASE("sync_execute can return a value in the presence of a thread switch", "[sync_execute]") {
+  // Act
+  auto r = concore2full::sync_execute([&] {
+    int res = 0;
+    (void)do_thread_inversion([&] { res = 13; });
+    return res;
+  });
+
+  // Assert
+  REQUIRE(r == 13);
+}
