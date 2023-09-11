@@ -46,7 +46,6 @@ TEST_CASE("sync_execute will finish on the same thread", "[sync_execute]") {
 TEST_CASE("sync_execute will finish on the same thread after two thread inversions in a row",
           "[sync_execute]") {
   // Arrange
-  printf("Available concurrency: %d\n", concore2full::global_thread_pool().available_parallelism());
   bool called1{false};
   bool called2{false};
   auto f = [&] {
