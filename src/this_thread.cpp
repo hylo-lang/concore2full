@@ -16,9 +16,14 @@ void set_thread_reclaimer(thread_reclaimer* new_reclaimer) {
 
 void inversion_checkpoint() {
   // Check if some other thread requested us to switch.
-  auto* first_thread = detail::get_current_thread_info().switch_control_.should_switch_with_.load(
-      std::memory_order_acquire);
+  auto& cur_thread = detail::get_current_thread_info();
+  auto* first_thread =
+      cur_thread.switch_control_.should_switch_with_.load(std::memory_order_acquire);
   if (first_thread) {
+    // Now that we started the thread inversion, we can reset the request atomic.
+    // Note: by construction, we should not request this thread to switch twice at the same time.
+    cur_thread.switch_control_.should_switch_with_.store(nullptr, std::memory_order_relaxed);
+
     // The switch data will be stored on the first thread.
     (void)detail::callcc([first_thread](detail::continuation_t c) -> detail::continuation_t {
       // Switch the data for this thread.

@@ -1,6 +1,7 @@
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/profiling.h"
 #include "concore2full/spawn.h"
+#include "concore2full/sync_execute.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -36,11 +37,10 @@ int concurrency_example() {
 
 TEST_CASE("simple example using concore2full", "[smoke]") {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  concore2full::profiling::sleep_for(100ms);
-  /*int r =*/concurrency_example();
-  // std::cout << r << "\n";
-
-  concore2full::profiling::sleep_for(100ms);
-  // std::cout << "expecting a crash here, while joining threads\n";
-  // TODO: handle this gracefully
+  concore2full::sync_execute([] {
+    // concore2full::profiling::sleep_for(100ms);
+    /*int r =*/concurrency_example();
+    // std::cout << r << "\n";
+    // concore2full::profiling::sleep_for(100ms);
+  });
 }
