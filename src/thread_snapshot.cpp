@@ -69,7 +69,6 @@ void thread_snapshot::perform_switch() {
     cur_thread.switch_control_.waiting_semaphore_.acquire();
 
     // The thread switch is complete.
-    // TODO: check for race conditions
     cur_thread.switch_control_.switch_complete();
 
     // Switch to the continuation provided by our original thread.
