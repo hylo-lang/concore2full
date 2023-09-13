@@ -6,7 +6,32 @@
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/this_thread.h"
 
+#include <type_traits>
+
 namespace concore2full {
+
+namespace detail {
+
+template <typename T> struct value_holder {
+  using value_t = std::remove_cvref_t<T>;
+
+  value_holder() = default;
+
+  value_t& value() noexcept { return value_; }
+
+private:
+  value_t value_;
+};
+
+template <> struct value_holder<void> {
+  using value_t = void;
+
+  value_holder() = default;
+
+  void value() noexcept {}
+};
+
+} // namespace detail
 
 /**
  * @brief The state of a spawned execution.
@@ -29,23 +54,16 @@ namespace concore2full {
  *
  * @sa spawn()
  */
-template <typename Fn> class spawn_state : private detail::task_base {
+template <typename Fn>
+class spawn_state : private detail::task_base,
+                    private detail::value_holder<std::invoke_result_t<Fn>> {
 public:
   ~spawn_state() = default;
   //! No copy, no move
   spawn_state(const spawn_state&) = delete;
 
   //! The type returned by the spawned computation.
-  using res_t = std::invoke_result_t<Fn>;
-
-  /// @brief Await the result of the computation
-  ///
-  /// @return The result of the computation; throws if the operation was cancelled.
-  ///
-  /// If the main thread of execution arrives at this point after the work is done, this will simply
-  /// return the result of the work. If the main thread of exection arrives here before the work is
-  /// completed, a "thread inversion" happens, and the main thread of execution continues work on
-  /// the coroutine that was just spawned.
+  using res_t = typename detail::value_holder<std::invoke_result_t<Fn>>::value_t;
 
   /**
    * @brief Await the result of the computation.
@@ -58,10 +76,12 @@ public:
    */
   res_t await() {
     on_main_complete();
-    return res_;
+    return base().value();
   }
 
 private:
+  using base_t = detail::value_holder<std::invoke_result_t<Fn>>;
+
   //! Desribes current state of the execution.
   enum class sync_state {
     both_working,
@@ -72,8 +92,6 @@ private:
 
   //! The function that needs to be executed in the spawned work.
   Fn f_;
-  //! The location where we need to store the result.
-  res_t res_;
   //! The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
   //! Indicates that the async processing has started (continuation is set).
@@ -83,8 +101,8 @@ private:
   /// A snaphot of the profilng zones at that spawn point.
   profiling::zone_stack_snapshot zones_;
 
-  /// @brief  Called when the async work is completed
-  /// @return The continuation that the work coroutine needs to do next (if there is any).
+  //! Gets the base class that holds the value.
+  base_t& base() noexcept { return static_cast<base_t&>(*this); }
 
   /**
    * @brief Called when the async work is completed
@@ -152,7 +170,11 @@ private:
       async_started_.store(true, std::memory_order_release);
       async_started_.notify_one();
       // Actually execute the given work.
-      res_ = std::invoke(std::forward<Fn>(f_));
+      if constexpr (std::is_same_v<res_t, void>) {
+        std::invoke(std::forward<Fn>(f_));
+      } else {
+        base().value() = std::invoke(std::forward<Fn>(f_));
+      }
       // Complete the async processing.
       return on_async_complete(thread_cont);
     });
