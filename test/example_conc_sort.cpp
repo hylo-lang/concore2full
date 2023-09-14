@@ -21,11 +21,12 @@ template <std::random_access_iterator It> inline int median9(It it, int n) {
   return med3(m1, m2, m3);
 }
 
-template <std::random_access_iterator It> It sort_partition(It first, It last) {
+template <std::random_access_iterator It> std::pair<It, It> sort_partition(It first, It last) {
   auto n = static_cast<int>(std::distance(first, last));
-  int m = median9(first, n);
-  auto pivot = first[m];
-  return std::partition(first, last, [=](const auto& val) { return val < pivot; });
+  auto pivot = median9(first, n);
+  auto mid1 = std::partition(first, last, [=](const auto& val) { return val < pivot; });
+  auto mid2 = std::partition(first, last, [=](const auto& val) { return !(pivot < val); });
+  return {mid1, mid2};
 }
 
 template <std::random_access_iterator It> void my_concurrent_sort(It first, It last) {
@@ -35,12 +36,14 @@ template <std::random_access_iterator It> void my_concurrent_sort(It first, It l
     std::sort(first, last);
   } else {
     // Partition the data, such as elements [0, mid) < [mid] <= [mid+1, n).
-    auto mid = sort_partition(first, last);
+    auto p = sort_partition(first, last);
+    auto mid1 = p.first;
+    auto mid2 = p.second;
 
     // Spawn work to sort the right-hand side.
-    auto handle = concore2full::spawn([=] { my_concurrent_sort(mid + 1, last); });
+    auto handle = concore2full::spawn([=] { my_concurrent_sort(mid2, last); });
     // Execute the sorting on the left side, on the current thread.
-    my_concurrent_sort(first, mid);
+    my_concurrent_sort(first, mid1);
     // We are done when both sides are done.
     handle.await();
   }
@@ -49,7 +52,7 @@ template <std::random_access_iterator It> void my_concurrent_sort(It first, It l
 TEST_CASE("concurrent sort example", "[examples]") {
   concore2full::sync_execute([] {
     std::vector<int> v;
-    static constexpr int num_elem = 10'000;
+    static constexpr int num_elem = 1'000;
     v.reserve(num_elem);
     for (int i = num_elem - 1; i >= 0; i--)
       v.push_back(i / 10);
