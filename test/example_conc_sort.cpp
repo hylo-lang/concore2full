@@ -30,7 +30,7 @@ template <std::random_access_iterator It> It sort_partition(It first, It last) {
 
 template <std::random_access_iterator It> void my_concurrent_sort(It first, It last) {
   auto size = std::distance(first, last);
-  if (int(size) < size_threshold) {
+  if (size_t(size) < size_threshold) {
     // Use serial sort under a certain threshold.
     std::sort(first, last);
   } else {
