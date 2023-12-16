@@ -31,36 +31,11 @@ template <> struct value_holder<void> {
   void value() noexcept {}
 };
 
-} // namespace detail
-
-/**
- * @brief The state of a spawned execution.
- * @tparam Fn The type of the functor used for spawning concurrent work.
- *
- * This represents the result of a `spawn` call, containing the state associated with the spawned
- * work. It will hold the data needed to execute the spawned computation and get its results.
- *
- * It can only be constructed through calling the `spawn()` function.
- *
- * It provides mechanisms for the main thread of execution to *await* the finish of the
- * computation. That is, continue when the computation is finished. If the main thread of execution
- * finishes first, then *thread inversion* will happen on the await point: the spawned thread will
- * continue the main work, while the main thread will be suspended. However, no OS thread will be
- * blocked.
- *
- * It exposes the type of the result of the spanwed computation.
- *
- * If the object is destryoed before the spawned work finishes, the work will be cancelled.
- *
- * @sa spawn()
- */
-template <typename Fn>
-class spawn_state : private detail::task_base,
-                    private detail::value_holder<std::invoke_result_t<Fn>> {
-public:
-  ~spawn_state() = default;
-  //! No copy, no move
-  spawn_state(const spawn_state&) = delete;
+template <typename Fn> struct operation_state : task_base, value_holder<std::invoke_result_t<Fn>> {
+  explicit operation_state(Fn&& f) : f_(std::forward<Fn>(f)) {}
+  ~operation_state() { assert(number_await_calls_ == 1); }
+  operation_state(operation_state&& other)
+      : f_(std::move(other.f_)), sync_state_(sync_state::both_working), async_started_(false) {}
 
   //! The type returned by the spawned computation.
   using res_t = typename detail::value_holder<std::invoke_result_t<Fn>>::value_t;
@@ -70,11 +45,12 @@ public:
    * @return The result of the computation; throws if the operation was cancelled.
    *
    * If the main thread of execution arrives at this point after the work is done, this will simply
-   * return the result of the work. If the main thread of exection arrives here before the work is
+   * return the result of the work. If the main thread of execution arrives here before the work is
    * completed, a "thread inversion" happens, and the main thread of execution continues work on
    * the coroutine that was just spawned.
    */
   res_t await() {
+    assert(number_await_calls_++ == 0);
     on_main_complete();
     return base().value();
   }
@@ -82,7 +58,7 @@ public:
 private:
   using base_t = detail::value_holder<std::invoke_result_t<Fn>>;
 
-  //! Desribes current state of the execution.
+  //! Describes current state of the execution.
   enum class sync_state {
     both_working,
     main_finishing,
@@ -98,8 +74,10 @@ private:
   std::atomic<bool> async_started_{false};
   //! Data used to switch threads between control-flows.
   detail::thread_switch_helper switch_data_;
-  /// A snaphot of the profilng zones at that spawn point.
+  /// A snapshot of the profiling zones at that spawn point.
   profiling::zone_stack_snapshot zones_;
+  /// The number of time await was called.
+  int number_await_calls_{0};
 
   //! Gets the base class that holds the value.
   base_t& base() noexcept { return static_cast<base_t&>(*this); }
@@ -179,17 +157,101 @@ private:
       return on_async_complete(thread_cont);
     });
   }
+};
+
+} // namespace detail
+
+/**
+ * @brief The state of a spawned execution.
+ * @tparam Fn The type of the functor used for spawning concurrent work.
+ *
+ * This represents the result of a `spawn` call, containing the state associated with the spawned
+ * work. It will hold the data needed to execute the spawned computation and get its results.
+ *
+ * It can only be constructed through calling the `spawn()` function.
+ *
+ * It provides mechanisms for the main thread of execution to *await* the finish of the
+ * computation. That is, continue when the computation is finished. If the main thread of execution
+ * finishes first, then *thread inversion* will happen on the await point: the spawned thread will
+ * continue the main work, while the main thread will be suspended. However, no OS thread will be
+ * blocked.
+ *
+ * It exposes the type of the result of the spawned computation.
+ *
+ * If the object is destroyed before the spawned work finishes, the work will be cancelled.
+ *
+ * @sa spawn()
+ */
+template <typename Fn> class spawn_state {
+public:
+  ~spawn_state() = default;
+  //! No copy, no move
+  spawn_state(const spawn_state&) = delete;
+
+  //! The type returned by the spawned computation.
+  using res_t = typename detail::operation_state<Fn>::res_t;
+
+  /**
+   * @brief Await the result of the computation.
+   * @return The result of the computation; throws if the operation was cancelled.
+   *
+   * If the main thread of execution arrives at this point after the work is done, this will simply
+   * return the result of the work. If the main thread of execution arrives here before the work is
+   * completed, a "thread inversion" happens, and the main thread of execution continues work on
+   * the coroutine that was just spawned.
+   */
+  res_t await() { return base_.await(); }
+
+private:
+  //! The base operation state, stored in dynamic memory, so that we can move this object.
+  detail::operation_state<Fn> base_;
 
   template <typename F> friend auto spawn(F&& f);
 
   //! Private constructor. `spawn` will call this.
-  spawn_state(Fn&& f) : f_(std::forward<Fn>(f)) { global_thread_pool().enqueue(this); }
+  spawn_state(Fn&& f) : base_(std::forward<Fn>(f)) { global_thread_pool().enqueue(&base_); }
+};
+
+//! Same as `spawn_state`, but allows the spawned function to escape the scope of the caller.
+//! Used to implement weekly-structured concurrency.
+template <typename Fn> class escaping_spawn_state {
+public:
+  ~escaping_spawn_state() = default;
+  escaping_spawn_state(const escaping_spawn_state&) = default;
+  escaping_spawn_state(escaping_spawn_state&&) = default;
+
+  //! The type returned by the spawned computation.
+  using res_t = typename detail::operation_state<Fn>::res_t;
+
+  /**
+   * @brief Await the result of the computation.
+   * @return The result of the computation; throws if the operation was cancelled.
+   *
+   * If the main thread of execution arrives at this point after the work is done, this will simply
+   * return the result of the work. If the main thread of execution arrives here before the work is
+   * completed, a "thread inversion" happens, and the main thread of execution continues work on
+   * the coroutine that was just spawned.
+   */
+  res_t await() { return base_->await(); }
+
+private:
+  using base_t = detail::operation_state<Fn>;
+
+  //! The base operation state, stored in dynamic memory, so that we can move this object.
+  std::shared_ptr<base_t> base_;
+
+  template <typename F> friend auto escaping_spawn(F&& f);
+
+  //! Private constructor. `spawn` will call this.
+  escaping_spawn_state(Fn&& f) : base_(std::make_shared<base_t>(base_t{std::forward<Fn>(f)})) {
+    global_thread_pool().enqueue(base_.get());
+  }
 };
 
 /**
  * @brief Spawn work with the default scheduler.
  * @tparam Fn The type of the function to execute.
- * @param f The function representing the work that needs to be executed asyncrhonously.
+ * @param f The function representing the work that needs to be executed asynchronously.
  * @return A `spawn_state` object; this object cannot be copied or moved
  *
  * This will use the default scheduler to spawn new work concurrently.
@@ -199,6 +261,11 @@ private:
  */
 template <typename Fn> inline auto spawn(Fn&& f) {
   using op_t = spawn_state<Fn>;
+  return op_t{std::forward<Fn>(f)};
+}
+
+template <typename Fn> inline auto escaping_spawn(Fn&& f) {
+  using op_t = escaping_spawn_state<Fn>;
   return op_t{std::forward<Fn>(f)};
 }
 
