@@ -55,3 +55,14 @@ TEST_CASE("sketch of implementing a P2300 `split` -- weekly-structured concurren
   auto doc = split_save_sharpen(future1);
   printf("resulting document: %s\n", doc.text.c_str());
 }
+
+template <typename Future, typename Fn> auto and_then(Future&& future, Fn&& fn) {
+  auto r = future.await();
+  return concore2full::escaping_spawn([=] { return fn(r); });
+}
+
+TEST_CASE("sketch of implementing a future `and_then`", "[examples]") {
+  auto f1 = concore2full::escaping_spawn(create_doc);
+  auto f2 = and_then(f1, apply_gaussian_blur);
+  save(f2.await());
+}
