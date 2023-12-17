@@ -5,6 +5,7 @@ find_package(context_core_api CONFIG REQUIRED)
 
 set(Sources
 src/profiling.cpp
+src/spawn.cpp
 src/thread_pool.cpp
 src/thread_info.cpp
 src/this_thread.cpp
