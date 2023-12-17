@@ -127,10 +127,7 @@ auto create_op() {
   return concore2full::escaping_spawn([]() -> int { return 13; });
 }
 
-template <typename Op>
-auto receiver(Op op) {
-  return op.await();
-}
+template <typename Op> auto receiver(Op op) { return op.await(); }
 
 TEST_CASE("escaping_spawn result can be returned from functions", "[spawn]") {
   // Act
