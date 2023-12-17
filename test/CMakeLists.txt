@@ -8,6 +8,8 @@ set(sourceFiles
 "test_thread_pool.cpp"
 "test_sync_execute.cpp"
 "example_conc_sort.cpp"
+"sketch_split.cpp"
+"sketch_cancellation.cpp"
 )
 
 find_package(Catch2 REQUIRED CONFIG)
