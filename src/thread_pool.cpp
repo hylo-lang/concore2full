@@ -148,7 +148,7 @@ void thread_pool::thread_main(int index) noexcept {
 
     assert(to_execute);
     profiling::zone zone2{CURRENT_LOCATION_N("execute")};
-    to_execute->execute(current_index);
+    to_execute->task_fptr_(to_execute, current_index);
   }
 
   // Ensure we finish on the same thread

@@ -42,7 +42,7 @@ enum class sync_state {
 struct spawn_data;
 using swap_impl_function_t = void (*)(spawn_data*);
 
-struct spawn_data {
+struct spawn_data : task_base {
   //! The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
   //! Indicates that the async processing has started (continuation is set).
@@ -57,23 +57,25 @@ struct spawn_data {
 #endif
 };
 
-void execute_spawn_task(spawn_data* data, int) noexcept;
+void execute_spawn_task(task_base* data, int) noexcept;
 void on_main_complete(spawn_data* data);
 
-struct task_impl : task_base, spawn_data {
-  void execute(int worker) noexcept override { execute_spawn_task(this, worker); }
-};
-
 //! Holds core spawn data, the spawn function and the result of the spawn function.
-template <typename Fn> struct full_spawn_data : task_impl, value_holder<std::invoke_result_t<Fn>> {
+template <typename Fn> struct full_spawn_data : spawn_data, value_holder<std::invoke_result_t<Fn>> {
   Fn f_;
 
   using value_holder_t = detail::value_holder<std::invoke_result_t<Fn>>;
   using res_t = typename value_holder_t::value_t;
 
-  explicit full_spawn_data(Fn&& f) : f_(std::forward<Fn>(f)) { fptr_ = &to_execute; }
+  explicit full_spawn_data(Fn&& f) : f_(std::forward<Fn>(f)) {
+    fptr_ = &to_execute;
+    task_fptr_ = &execute_spawn_task;
+  }
 
-  full_spawn_data(full_spawn_data&& other) : f_(std::move(other.f_)) { fptr_ = &to_execute; }
+  full_spawn_data(full_spawn_data&& other) : f_(std::move(other.f_)) {
+    fptr_ = &to_execute;
+    task_fptr_ = &execute_spawn_task;
+  }
 
 private:
   static void to_execute(spawn_data* data) noexcept {
