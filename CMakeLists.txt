@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(concore2full LANGUAGES CXX)
+project(concore2full LANGUAGES CXX C)
 
 find_package(context_core_api CONFIG REQUIRED)
 
