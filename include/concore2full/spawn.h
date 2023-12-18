@@ -1,7 +1,7 @@
 #pragma once
 
+#include "concore2full/c/task.h"
 #include "concore2full/detail/callcc.h"
-#include "concore2full/detail/task_base.h"
 #include "concore2full/detail/thread_switch_helper.h"
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/this_thread.h"
@@ -42,7 +42,7 @@ enum class sync_state {
 struct spawn_data;
 using swap_impl_function_t = void (*)(spawn_data*);
 
-struct spawn_data : task_base {
+struct spawn_data : concore2full_task {
   //! The state of the computation, with respect to reaching the await point.
   std::atomic<sync_state> sync_state_{sync_state::both_working};
   //! Indicates that the async processing has started (continuation is set).
@@ -57,7 +57,7 @@ struct spawn_data : task_base {
 #endif
 };
 
-void execute_spawn_task(task_base* data, int) noexcept;
+void execute_spawn_task(concore2full_task* data, int) noexcept;
 void on_main_complete(spawn_data* data);
 
 //! Holds core spawn data, the spawn function and the result of the spawn function.
@@ -69,12 +69,12 @@ template <typename Fn> struct full_spawn_data : spawn_data, value_holder<std::in
 
   explicit full_spawn_data(Fn&& f) : f_(std::forward<Fn>(f)) {
     fptr_ = &to_execute;
-    task_fptr_ = &execute_spawn_task;
+    task_function_ = &execute_spawn_task;
   }
 
   full_spawn_data(full_spawn_data&& other) : f_(std::move(other.f_)) {
     fptr_ = &to_execute;
-    task_fptr_ = &execute_spawn_task;
+    task_function_ = &execute_spawn_task;
   }
 
 private:

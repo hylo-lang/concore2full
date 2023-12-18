@@ -47,7 +47,7 @@ void on_main_complete(spawn_data* data) {
   // This point will be executed by the thread that finishes last.
 }
 
-void execute_spawn_task(task_base* task, int) noexcept {
+void execute_spawn_task(concore2full_task* task, int) noexcept {
   spawn_data* data = static_cast<spawn_data*>(task);
 #if USE_TRACY
   profiling::duplicate_zones_stack scoped_zones_stack{zones_};

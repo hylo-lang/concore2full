@@ -20,7 +20,6 @@ struct concore2full_task {
   struct concore2full_task* next_;
 };
 
-
 #ifdef __cplusplus
 }
 #endif
