@@ -5,8 +5,6 @@
 #include "concore2full/c/thread_switch.h"
 #include <context_core_api.h>
 
-#include <stdatomic.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,10 +21,10 @@ struct concore2full_spawn_data {
   struct concore2full_task task_;
 
   //! The state of the computation, with respect to reaching the await point.
-  atomic_int sync_state_;
+  _Atomic(int) sync_state_;
 
   //! Indicates that the async processing has started (continuation is set).
-  atomic_bool async_started_;
+  _Atomic(int) async_started_;
 
   //! Data used to switch threads between control-flows.
   struct concore2full_thread_switch_data switch_data_;
@@ -34,6 +32,9 @@ struct concore2full_spawn_data {
   //! The user function to be called to execute the async work.
   concore2full_spawn_function_t user_function_;
 };
+
+void concore2full_initialize(struct concore2full_spawn_data* data,
+                             concore2full_spawn_function_t user_function);
 
 #ifdef __cplusplus
 }

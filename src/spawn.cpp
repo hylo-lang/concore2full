@@ -2,14 +2,53 @@
 #include "concore2full/profiling.h"
 
 #include <chrono>
+#include <stdatomic.h>
 
-using namespace std::chrono_literals;
+namespace concore2full::detail {
+void execute_spawn_task(concore2full_task* data, int) noexcept;
+}
+
+enum sync_state_values {
+  both_working,
+  main_finishing,
+  main_finished,
+  async_finished,
+};
+
+extern "C" void concore2full_initialize(struct concore2full_spawn_data* data,
+                                        concore2full_spawn_function_t user_function) {
+  memset(data, 0, sizeof(concore2full_spawn_data));
+  data->task_.task_function_ = &concore2full::detail::execute_spawn_task;
+  data->sync_state_ = both_working;
+  data->user_function_ = user_function;
+}
 
 namespace concore2full::detail {
 
-detail::continuation_t on_async_complete(spawn_data* data, detail::continuation_t c) {
-  sync_state expected{sync_state::both_working};
-  if (data->sync_state_.compare_exchange_strong(expected, sync_state::async_finished)) {
+template <typename F> void wait_with_backoff(F&& f) {
+  constexpr int polling_count = 64;
+  uint32_t i = 0;
+  while (true) {
+    if (f())
+      return;
+    // Do some polling.
+    if (i++ < polling_count)
+      continue;
+
+    // Yield the control for this OS thread.
+    std::this_thread::yield();
+    i = 0;
+  }
+}
+
+void wait(_Atomic(int)& a, int old, int memory_order) {
+  wait_with_backoff(
+      [&a, old, memory_order]() { return atomic_load_explicit(&a, memory_order) != old; });
+}
+
+detail::continuation_t on_async_complete(concore2full_spawn_data* data, detail::continuation_t c) {
+  int expected{both_working};
+  if (atomic_compare_exchange_strong(&data->sync_state_, &expected, async_finished)) {
     // We are first to arrive at completion.
     // We won't need any thread switch, so we can safely exit.
     // Return the original continuation.
@@ -19,26 +58,25 @@ detail::continuation_t on_async_complete(spawn_data* data, detail::continuation_
 
     // If the main thread is currently finishing, wait for it to finish.
     // We need the main thread to properly call `originator_start`.
-    data->sync_state_.wait(sync_state::main_finishing, std::memory_order_acquire);
+    wait(data->sync_state_, main_finishing, memory_order_acquire);
 
     // Finish the thread switch.
-    return data->switch_data_.secondary_end();
+    return concore2full_exchange_thread_with(&data->switch_data_.originator_);
   }
 }
 
-void on_main_complete(spawn_data* data) {
-  sync_state expected{sync_state::both_working};
-  if (data->sync_state_.compare_exchange_strong(expected, sync_state::main_finishing)) {
+void on_main_complete(concore2full_spawn_data* data) {
+  int expected{both_working};
+  if (atomic_compare_exchange_strong(&data->sync_state_, &expected, main_finishing)) {
     // The main thread is first to finish; we need to start switching threads.
     auto c = detail::callcc([data](detail::continuation_t await_cc) -> detail::continuation_t {
-      data->switch_data_.originator_start(await_cc);
+      concore2full_store_thread_data(&data->switch_data_.originator_, await_cc);
       // We are done "finishing".
-      data->sync_state_.store(sync_state::main_finished, std::memory_order_release);
-      data->sync_state_.notify_one();
+      atomic_store_explicit(&data->sync_state_, main_finished, memory_order_release);
       // Ensure that we started the async work (and the continuation is set).
-      data->async_started_.wait(false, std::memory_order_acquire);
+      wait(data->async_started_, 0, memory_order_acquire);
       // Complete the thread switching.
-      return data->switch_data_.originator_end();
+      return concore2full_exchange_thread_with(&data->switch_data_.target_);
     });
     (void)c;
   } else {
@@ -48,18 +86,17 @@ void on_main_complete(spawn_data* data) {
 }
 
 void execute_spawn_task(concore2full_task* task, int) noexcept {
-  spawn_data* data = static_cast<spawn_data*>(task);
+  auto data = (concore2full_spawn_data*)((char*)task - offsetof(concore2full_spawn_data, task_));
 #if USE_TRACY
   profiling::duplicate_zones_stack scoped_zones_stack{zones_};
 #endif
   (void)detail::callcc([data](detail::continuation_t thread_cont) -> detail::continuation_t {
     // Assume there will be a thread switch and store required objects.
-    data->switch_data_.secondary_start(thread_cont);
+    concore2full_store_thread_data(&data->switch_data_.target_, thread_cont);
     // Signal the fact that we have started (and the continuation is properly stored).
-    data->async_started_.store(true, std::memory_order_release);
-    data->async_started_.notify_one();
+    atomic_store_explicit(&data->async_started_, 1, memory_order_release);
     // Actually execute the given work.
-    data->fptr_(data);
+    data->user_function_(data);
     // Complete the async processing.
     return on_async_complete(data, thread_cont);
   });

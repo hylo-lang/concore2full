@@ -1,5 +1,6 @@
 #pragma once
 
+#include "concore2full/c/spawn.h"
 #include "concore2full/c/task.h"
 #include "concore2full/detail/callcc.h"
 #include "concore2full/detail/thread_switch_helper.h"
@@ -31,54 +32,26 @@ template <> struct value_holder<void> {
   void value() noexcept {}
 };
 
-//! Describes current state of the execution.
-enum class sync_state {
-  both_working,
-  main_finishing,
-  main_finished,
-  async_finished,
-};
-
-struct spawn_data;
-using swap_impl_function_t = void (*)(spawn_data*);
-
-struct spawn_data : concore2full_task {
-  //! The state of the computation, with respect to reaching the await point.
-  std::atomic<sync_state> sync_state_{sync_state::both_working};
-  //! Indicates that the async processing has started (continuation is set).
-  std::atomic<bool> async_started_{false};
-  //! Data used to switch threads between control-flows.
-  detail::thread_switch_helper switch_data_;
-  //! The function to be called to execute the async work.
-  swap_impl_function_t fptr_;
-#if USE_TRACY
-  /// A snapshot of the profiling zones at that spawn point.
-  profiling::zone_stack_snapshot zones_;
-#endif
-};
-
-void execute_spawn_task(concore2full_task* data, int) noexcept;
-void on_main_complete(spawn_data* data);
+void on_main_complete(concore2full_spawn_data* data);
 
 //! Holds core spawn data, the spawn function and the result of the spawn function.
-template <typename Fn> struct full_spawn_data : spawn_data, value_holder<std::invoke_result_t<Fn>> {
+template <typename Fn>
+struct full_spawn_data : concore2full_spawn_data, value_holder<std::invoke_result_t<Fn>> {
   Fn f_;
 
   using value_holder_t = detail::value_holder<std::invoke_result_t<Fn>>;
   using res_t = typename value_holder_t::value_t;
 
   explicit full_spawn_data(Fn&& f) : f_(std::forward<Fn>(f)) {
-    fptr_ = &to_execute;
-    task_function_ = &execute_spawn_task;
+    concore2full_initialize(this, &to_execute);
   }
 
   full_spawn_data(full_spawn_data&& other) : f_(std::move(other.f_)) {
-    fptr_ = &to_execute;
-    task_function_ = &execute_spawn_task;
+    concore2full_initialize(this, &to_execute);
   }
 
 private:
-  static void to_execute(spawn_data* data) noexcept {
+  static void to_execute(concore2full_spawn_data* data) noexcept {
     auto* d = static_cast<detail::full_spawn_data<Fn>*>(data);
 
     if constexpr (std::is_same_v<res_t, void>) {
@@ -142,7 +115,7 @@ private:
   template <typename F> friend auto spawn(F&& f);
 
   //! Private constructor. `spawn` will call this.
-  spawn_state(Fn&& f) : base_(std::forward<Fn>(f)) { global_thread_pool().enqueue(&base_); }
+  spawn_state(Fn&& f) : base_(std::forward<Fn>(f)) { global_thread_pool().enqueue(&base_.task_); }
 };
 
 //! Same as `spawn_state`, but allows the spawned function to escape the scope of the caller.
@@ -180,7 +153,7 @@ private:
 
   //! Private constructor. `spawn` will call this.
   escaping_spawn_state(Fn&& f) : base_(std::make_shared<base_t>(base_t{std::forward<Fn>(f)})) {
-    global_thread_pool().enqueue(base_.get());
+    global_thread_pool().enqueue(&base_->task_);
   }
 };
 

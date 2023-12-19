@@ -27,6 +27,15 @@ struct concore2full_thread_switch_data {
   struct concore2full_thread_data target_;
 };
 
+//! Stores data about the current (`c` and current thread reclaimer) thread into `data`.
+void concore2full_store_thread_data(struct concore2full_thread_data* data,
+                                    context_core_api_fcontext_t c);
+
+//! Switches the current thread reclaimer to the one hold by `data` and returns the continuation we
+//! should be switching to.
+context_core_api_fcontext_t
+concore2full_exchange_thread_with(struct concore2full_thread_data* data);
+
 #ifdef __cplusplus
 }
 #endif
