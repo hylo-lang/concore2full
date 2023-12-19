@@ -5,9 +5,10 @@
 #include <chrono>
 #include <cstring>
 
-namespace concore2full::detail {
-void execute_spawn_task(concore2full_task* frame, int) noexcept;
-}
+namespace {
+
+using concore2full::detail::callcc;
+using concore2full::detail::continuation_t;
 
 /*
 Valid transitions:
@@ -21,22 +22,6 @@ enum sync_state_values {
   ss_main_finishing,
   ss_main_finished,
 };
-
-extern "C" void concore2full_spawn(struct concore2full_spawn_frame* frame,
-                                   concore2full_spawn_function_t f) {
-  frame->task_.task_function_ = &concore2full::detail::execute_spawn_task;
-  frame->task_.next_ = nullptr;
-  frame->sync_state_ = ss_initial_state;
-  memset(&frame->switch_data_, 0, sizeof(concore2full_thread_switch_data));
-  frame->user_function_ = f;
-  concore2full::global_thread_pool().enqueue(&frame->task_);
-}
-
-extern "C" void concore2full_await(struct concore2full_spawn_frame* frame) {
-  concore2full::detail::on_main_complete(frame);
-}
-
-namespace concore2full::detail {
 
 //! Wait until the given function returns true.
 template <typename F> void wait_with_backoff(F&& f) {
@@ -63,8 +48,8 @@ template <typename F> void atomic_wait(CONCORE2FULL_ATOMIC(int) & a, F&& f) {
   });
 }
 
-detail::continuation_t on_async_complete(concore2full_spawn_frame* frame,
-                                         detail::continuation_t c) {
+//! Called when the async work is finished, to see if we need a thread switch.
+continuation_t on_async_complete(concore2full_spawn_frame* frame, continuation_t c) {
   int expected{ss_async_started};
   if (atomic_compare_exchange_strong(&frame->sync_state_, &expected, ss_async_finished)) {
     // We are first to arrive at completion.
@@ -83,7 +68,34 @@ detail::continuation_t on_async_complete(concore2full_spawn_frame* frame,
   }
 }
 
-void on_main_complete(concore2full_spawn_frame* frame) {
+//! The task function that executes the async work.
+void execute_spawn_task(concore2full_task* task, int) noexcept {
+  auto frame = (concore2full_spawn_frame*)((char*)task - offsetof(concore2full_spawn_frame, task_));
+  (void)callcc([frame](continuation_t thread_cont) -> continuation_t {
+    // Assume there will be a thread switch and store required objects.
+    concore2full_store_thread_data(&frame->switch_data_.target_, thread_cont);
+    // Signal the fact that we have started (and the continuation is properly stored).
+    atomic_store_explicit(&frame->sync_state_, ss_async_started, std::memory_order_release);
+    // Actually execute the given work.
+    frame->user_function_(frame);
+    // Complete the async processing.
+    return on_async_complete(frame, thread_cont);
+  });
+}
+
+} // namespace
+
+extern "C" void concore2full_spawn(struct concore2full_spawn_frame* frame,
+                                   concore2full_spawn_function_t f) {
+  frame->task_.task_function_ = &execute_spawn_task;
+  frame->task_.next_ = nullptr;
+  frame->sync_state_ = ss_initial_state;
+  memset(&frame->switch_data_, 0, sizeof(concore2full_thread_switch_data));
+  frame->user_function_ = f;
+  concore2full::global_thread_pool().enqueue(&frame->task_);
+}
+
+extern "C" void concore2full_await(struct concore2full_spawn_frame* frame) {
   // Ensure that we started the async work (and the continuation is set).
   atomic_wait(frame->sync_state_, [](int v) { return v >= ss_async_started; });
   // Now, the possible states are: ss_async_started, ss_async_finished
@@ -91,7 +103,7 @@ void on_main_complete(concore2full_spawn_frame* frame) {
   int expected{ss_async_started};
   if (atomic_compare_exchange_strong(&frame->sync_state_, &expected, ss_main_finishing)) {
     // The main thread is first to finish; we need to start switching threads.
-    auto c = detail::callcc([frame](detail::continuation_t await_cc) -> detail::continuation_t {
+    auto c = callcc([frame](continuation_t await_cc) -> continuation_t {
       concore2full_store_thread_data(&frame->switch_data_.originator_, await_cc);
       // We are done "finishing".
       atomic_store_explicit(&frame->sync_state_, ss_main_finished, std::memory_order_release);
@@ -104,22 +116,3 @@ void on_main_complete(concore2full_spawn_frame* frame) {
   }
   // This point will be executed by the thread that finishes last.
 }
-
-void execute_spawn_task(concore2full_task* task, int) noexcept {
-  auto frame = (concore2full_spawn_frame*)((char*)task - offsetof(concore2full_spawn_frame, task_));
-#if USE_TRACY
-  profiling::duplicate_zones_stack scoped_zones_stack{zones_};
-#endif
-  (void)detail::callcc([frame](detail::continuation_t thread_cont) -> detail::continuation_t {
-    // Assume there will be a thread switch and store required objects.
-    concore2full_store_thread_data(&frame->switch_data_.target_, thread_cont);
-    // Signal the fact that we have started (and the continuation is properly stored).
-    atomic_store_explicit(&frame->sync_state_, ss_async_started, std::memory_order_release);
-    // Actually execute the given work.
-    frame->user_function_(frame);
-    // Complete the async processing.
-    return on_async_complete(frame, thread_cont);
-  });
-}
-
-} // namespace concore2full::detail

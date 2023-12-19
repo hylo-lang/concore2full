@@ -31,8 +31,6 @@ template <> struct value_holder<void> {
   void value() noexcept {}
 };
 
-void on_main_complete(concore2full_spawn_frame* frame);
-
 //! Holds core spawn frame, the spawn function and the result of the spawn function.
 template <typename Fn>
 struct full_spawn_frame : concore2full_spawn_frame, value_holder<std::invoke_result_t<Fn>> {
@@ -104,7 +102,7 @@ public:
    * the coroutine that was just spawned.
    */
   res_t await() {
-    on_main_complete(&base_);
+    concore2full_await(&base_);
     return base_.value();
   }
 
@@ -139,7 +137,7 @@ public:
    * the coroutine that was just spawned.
    */
   res_t await() {
-    on_main_complete(base_.get());
+    concore2full_await(base_.get());
     return base_->value();
   }
 
