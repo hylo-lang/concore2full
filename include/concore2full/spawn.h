@@ -65,7 +65,7 @@ private:
 template <typename Fn, bool Escaping = false> struct frame_holder {
   using frame_t = full_spawn_frame<Fn>;
 
-  frame_holder(Fn&& f) : frame_(std::forward<Fn>(f)) {}
+  explicit frame_holder(Fn&& f) : frame_(std::forward<Fn>(f)) {}
   //! No copy, no move
   frame_holder(const frame_holder&) = delete;
 
@@ -78,7 +78,7 @@ private:
 template <typename Fn> struct frame_holder<Fn, true> {
   using frame_t = full_spawn_frame<Fn>;
 
-  frame_holder(Fn&& f) : frame_(std::make_shared<frame_t>(std::forward<Fn>(f))) {}
+  explicit frame_holder(Fn&& f) : frame_(std::make_shared<frame_t>(std::forward<Fn>(f))) {}
 
   frame_t& get() noexcept { return *frame_.get(); }
 
