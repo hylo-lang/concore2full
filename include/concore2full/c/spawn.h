@@ -23,9 +23,6 @@ struct concore2full_spawn_frame {
   //! The state of the computation, with respect to reaching the await point.
   _Atomic(int) sync_state_;
 
-  //! Indicates that the async processing has started (continuation is set).
-  _Atomic(int) async_started_;
-
   //! Data used to switch threads between control-flows.
   struct concore2full_thread_switch_data switch_data_;
 
