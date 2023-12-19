@@ -1,4 +1,5 @@
 #include "concore2full/spawn.h"
+#include "concore2full/global_thread_pool.h"
 #include "concore2full/profiling.h"
 
 #include <chrono>
@@ -21,13 +22,18 @@ enum sync_state_values {
   ss_main_finished,
 };
 
-extern "C" void concore2full_initialize(struct concore2full_spawn_frame* frame,
-                                        concore2full_spawn_function_t user_function) {
+extern "C" void concore2full_spawn(struct concore2full_spawn_frame* frame,
+                                   concore2full_spawn_function_t f) {
   frame->task_.task_function_ = &concore2full::detail::execute_spawn_task;
   frame->task_.next_ = nullptr;
   frame->sync_state_ = ss_initial_state;
   memset(&frame->switch_data_, 0, sizeof(concore2full_thread_switch_data));
-  frame->user_function_ = user_function;
+  frame->user_function_ = f;
+  concore2full::global_thread_pool().enqueue(&frame->task_);
+}
+
+extern "C" void concore2full_await(struct concore2full_spawn_frame* frame) {
+  concore2full::detail::on_main_complete(frame);
 }
 
 namespace concore2full::detail {

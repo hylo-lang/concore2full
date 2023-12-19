@@ -4,7 +4,6 @@
 #include "concore2full/c/task.h"
 #include "concore2full/detail/callcc.h"
 #include "concore2full/detail/thread_switch_helper.h"
-#include "concore2full/global_thread_pool.h"
 #include "concore2full/this_thread.h"
 
 #include <type_traits>
@@ -42,12 +41,13 @@ struct full_spawn_frame : concore2full_spawn_frame, value_holder<std::invoke_res
   using value_holder_t = detail::value_holder<std::invoke_result_t<Fn>>;
   using res_t = typename value_holder_t::value_t;
 
-  explicit full_spawn_frame(Fn&& f) : f_(std::forward<Fn>(f)) {
-    concore2full_initialize(this, &to_execute);
-  }
+  explicit full_spawn_frame(Fn&& f) : f_(std::forward<Fn>(f)) {}
 
-  full_spawn_frame(full_spawn_frame&& other) : f_(std::move(other.f_)) {
-    concore2full_initialize(this, &to_execute);
+  full_spawn_frame(full_spawn_frame&& other) : f_(std::move(other.f_)) {}
+
+  void do_spawn() {
+    // Also initialize the base frame.
+    concore2full_spawn(this, &to_execute);
   }
 
 private:
@@ -115,7 +115,7 @@ private:
   template <typename F> friend auto spawn(F&& f);
 
   //! Private constructor. `spawn` will call this.
-  spawn_state(Fn&& f) : base_(std::forward<Fn>(f)) { global_thread_pool().enqueue(&base_.task_); }
+  spawn_state(Fn&& f) : base_(std::forward<Fn>(f)) { base_.do_spawn(); }
 };
 
 //! Same as `spawn_state`, but allows the spawned function to escape the scope of the caller.
@@ -153,7 +153,7 @@ private:
 
   //! Private constructor. `spawn` will call this.
   escaping_spawn_state(Fn&& f) : base_(std::make_shared<base_t>(base_t{std::forward<Fn>(f)})) {
-    global_thread_pool().enqueue(&base_->task_);
+    base_->do_spawn();
   }
 };
 

@@ -37,8 +37,11 @@ struct concore2full_spawn_frame {
   concore2full_spawn_function_t user_function_;
 };
 
-void concore2full_initialize(struct concore2full_spawn_frame* frame,
-                             concore2full_spawn_function_t user_function);
+//! Asynchronously executes `f`, using the given `frame` to hold the state.
+void concore2full_spawn(struct concore2full_spawn_frame* frame, concore2full_spawn_function_t f);
+
+//! Await the async computation represented by `frame` to be finished.
+void concore2full_await(struct concore2full_spawn_frame* frame);
 
 #ifdef __cplusplus
 }
