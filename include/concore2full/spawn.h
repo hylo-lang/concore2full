@@ -6,6 +6,7 @@
 #include "concore2full/detail/thread_switch_helper.h"
 #include "concore2full/this_thread.h"
 
+#include <memory>
 #include <type_traits>
 
 namespace concore2full {
