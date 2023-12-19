@@ -9,13 +9,13 @@
 extern "C" {
 #endif
 
-struct concore2full_spawn_data;
+struct concore2full_spawn_frame;
 
 //! Type of a user function to be executed on `spawn`.
-typedef void (*concore2full_spawn_function_t)(struct concore2full_spawn_data* data);
+typedef void (*concore2full_spawn_function_t)(struct concore2full_spawn_frame*);
 
 //! Data needed to perform a `spawn` operation.
-struct concore2full_spawn_data {
+struct concore2full_spawn_frame {
 
   //! Describes how to view the spawn data as a task.
   struct concore2full_task task_;
@@ -33,7 +33,7 @@ struct concore2full_spawn_data {
   concore2full_spawn_function_t user_function_;
 };
 
-void concore2full_initialize(struct concore2full_spawn_data* data,
+void concore2full_initialize(struct concore2full_spawn_frame* frame,
                              concore2full_spawn_function_t user_function);
 
 #ifdef __cplusplus

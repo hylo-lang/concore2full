@@ -32,27 +32,27 @@ template <> struct value_holder<void> {
   void value() noexcept {}
 };
 
-void on_main_complete(concore2full_spawn_data* data);
+void on_main_complete(concore2full_spawn_frame* frame);
 
-//! Holds core spawn data, the spawn function and the result of the spawn function.
+//! Holds core spawn frame, the spawn function and the result of the spawn function.
 template <typename Fn>
-struct full_spawn_data : concore2full_spawn_data, value_holder<std::invoke_result_t<Fn>> {
+struct full_spawn_frame : concore2full_spawn_frame, value_holder<std::invoke_result_t<Fn>> {
   Fn f_;
 
   using value_holder_t = detail::value_holder<std::invoke_result_t<Fn>>;
   using res_t = typename value_holder_t::value_t;
 
-  explicit full_spawn_data(Fn&& f) : f_(std::forward<Fn>(f)) {
+  explicit full_spawn_frame(Fn&& f) : f_(std::forward<Fn>(f)) {
     concore2full_initialize(this, &to_execute);
   }
 
-  full_spawn_data(full_spawn_data&& other) : f_(std::move(other.f_)) {
+  full_spawn_frame(full_spawn_frame&& other) : f_(std::move(other.f_)) {
     concore2full_initialize(this, &to_execute);
   }
 
 private:
-  static void to_execute(concore2full_spawn_data* data) noexcept {
-    auto* d = static_cast<detail::full_spawn_data<Fn>*>(data);
+  static void to_execute(concore2full_spawn_frame* frame) noexcept {
+    auto* d = static_cast<detail::full_spawn_frame<Fn>*>(frame);
 
     if constexpr (std::is_same_v<res_t, void>) {
       std::invoke(std::forward<Fn>(d->f_));
@@ -92,7 +92,7 @@ public:
   spawn_state(const spawn_state&) = delete;
 
   //! The type returned by the spawned computation.
-  using res_t = typename detail::full_spawn_data<Fn>::res_t;
+  using res_t = typename detail::full_spawn_frame<Fn>::res_t;
 
   /**
    * @brief Await the result of the computation.
@@ -110,7 +110,7 @@ public:
 
 private:
   //! The base operation state, stored in dynamic memory, so that we can move this object.
-  detail::full_spawn_data<Fn> base_;
+  detail::full_spawn_frame<Fn> base_;
 
   template <typename F> friend auto spawn(F&& f);
 
@@ -127,7 +127,7 @@ public:
   escaping_spawn_state(escaping_spawn_state&&) = default;
 
   //! The type returned by the spawned computation.
-  using res_t = typename detail::full_spawn_data<Fn>::res_t;
+  using res_t = typename detail::full_spawn_frame<Fn>::res_t;
 
   /**
    * @brief Await the result of the computation.
@@ -144,7 +144,7 @@ public:
   }
 
 private:
-  using base_t = detail::full_spawn_data<Fn>;
+  using base_t = detail::full_spawn_frame<Fn>;
 
   //! The base operation state, stored in dynamic memory, so that we can move this object.
   std::shared_ptr<base_t> base_;
