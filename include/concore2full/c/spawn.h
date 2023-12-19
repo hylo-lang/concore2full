@@ -6,6 +6,13 @@
 #include <context_core_api.h>
 
 #ifdef __cplusplus
+#include <atomic>
+#define CONCORE2FULL_ATOMIC(x) std::atomic<x>
+#else
+#define CONCORE2FULL_ATOMIC(x) volatile x
+#endif
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -21,7 +28,7 @@ struct concore2full_spawn_frame {
   struct concore2full_task task_;
 
   //! The state of the computation, with respect to reaching the await point.
-  _Atomic(int) sync_state_;
+  CONCORE2FULL_ATOMIC(int) sync_state_;
 
   //! Data used to switch threads between control-flows.
   struct concore2full_thread_switch_data switch_data_;
