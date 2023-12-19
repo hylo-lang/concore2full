@@ -10,6 +10,8 @@ set(sourceFiles
 "example_conc_sort.cpp"
 "sketch_split.cpp"
 "sketch_cancellation.cpp"
+"tests_c.cpp"
+"c/test_spawn.c"
 )
 
 find_package(Catch2 REQUIRED CONFIG)

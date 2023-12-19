@@ -2,6 +2,7 @@
 
 #include "core_types.h"
 
+#include "concore2full/c/thread_switch.h"
 #include "concore2full/this_thread.h"
 
 namespace concore2full {
@@ -32,36 +33,31 @@ class thread_switch_helper {
 public:
   //! Called by the originator control-flow to start the switch.
   void originator_start(detail::continuation_t c) {
-    after_originator_ = c;
-    originator_reclaimer_ = this_thread::get_thread_reclaimer();
+    switch_data_.originator_.context_ = c;
+    switch_data_.originator_.thread_reclaimer_ = this_thread::get_thread_reclaimer();
   }
   //! Called by the originator control-flow to finish the switch.
   detail::continuation_t originator_end() {
-    this_thread::set_thread_reclaimer(secondary_reclaimer_);
-    return std::exchange(after_secondary_, nullptr);
+    this_thread::set_thread_reclaimer(
+        static_cast<thread_reclaimer*>(switch_data_.target_.thread_reclaimer_));
+    return std::exchange(switch_data_.target_.context_, nullptr);
   }
 
   //! Called by the secondary control-flow when entering the switch process.
   void secondary_start(detail::continuation_t c) {
-    after_secondary_ = c;
-    secondary_reclaimer_ = this_thread::get_thread_reclaimer();
+    switch_data_.target_.context_ = c;
+    switch_data_.target_.thread_reclaimer_ = this_thread::get_thread_reclaimer();
   }
   //! Called by the secondary control-flow when exiting the switch process.
   detail::continuation_t secondary_end() {
-    this_thread::set_thread_reclaimer(originator_reclaimer_);
-    return std::exchange(after_originator_, nullptr);
+    this_thread::set_thread_reclaimer(
+        static_cast<thread_reclaimer*>(switch_data_.originator_.thread_reclaimer_));
+    return std::exchange(switch_data_.originator_.context_, nullptr);
   }
 
 private:
-  //! The continuation for the originator control-flow; will be continued by the secondary thread.
-  detail::continuation_t after_originator_{nullptr};
-  //! The continuation for the other control-flow; the thread that originates the switch will
-  //! continue this.
-  detail::continuation_t after_secondary_{nullptr};
-  //! The thread reclaimer that was on the original thread before the switch.
-  thread_reclaimer* originator_reclaimer_{nullptr};
-  //! The thread reclaimer that was on the other thread before the switch.
-  thread_reclaimer* secondary_reclaimer_{nullptr};
+  //! The data used to switch threads between control-flows.
+  concore2full_thread_switch_data switch_data_{{nullptr, nullptr}, {nullptr, nullptr}};
 };
 
 } // namespace concore2full::detail

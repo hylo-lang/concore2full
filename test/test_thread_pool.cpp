@@ -4,15 +4,19 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <latch>
 
 using namespace std::chrono_literals;
 
-template <std::invocable Fn> struct fun_task : concore2full::detail::task_base {
+template <std::invocable Fn> struct fun_task : concore2full_task {
   Fn f_;
-  explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {}
+  explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) { task_function_ = &execute; }
 
-  void execute(int) noexcept override { std::invoke(f_); }
+  static void execute(concore2full_task* task, int) noexcept {
+    auto self = static_cast<fun_task*>(task);
+    std::invoke(self->f_);
+  }
 };
 
 TEST_CASE("thread_pool can be default constructed, and has some parallelism", "[thread_pool]") {
@@ -72,7 +76,7 @@ TEST_CASE("thread_pool can execute two tasks in parallel", "[thread_pool]") {
   REQUIRE(called2);
 }
 
-TEST_CASE("thread_pool can execute tasks in parallel, to the availabile hardware concurrency",
+TEST_CASE("thread_pool can execute tasks in parallel, to the available hardware concurrency",
           "[thread_pool]") {
   /*
   Notes on test implementation:
@@ -91,22 +95,25 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the availabile hardware
   concore2full::thread_pool sut;
   auto n = sut.available_parallelism();
   if (n > 2) {
-    struct my_task : concore2full::detail::task_base {
+    struct my_task : concore2full_task {
       std::atomic<int>& task_counter_;
       int wait_limit_;
       bool called_{false};
 
       explicit my_task(std::atomic<int>& task_counter, int wait_limit)
-          : task_counter_(task_counter), wait_limit_(wait_limit) {}
+          : task_counter_(task_counter), wait_limit_(wait_limit) {
+        task_function_ = &execute;
+      }
 
-      void execute(int) noexcept override {
+      static void execute(concore2full_task* task, int) noexcept {
+        auto self = static_cast<my_task*>(task);
         // Wait until there are enough tasks executing; stop after some time, if we don't get the
         // required number of tasks entering here.
-        task_counter_.fetch_add(1, std::memory_order_release);
+        self->task_counter_.fetch_add(1, std::memory_order_release);
         for (int i = 0; i < 10000; i++) {
-          if (task_counter_.load(std::memory_order_acquire) >= wait_limit_) {
+          if (self->task_counter_.load(std::memory_order_acquire) >= self->wait_limit_) {
             // We are good
-            called_ = true;
+            self->called_ = true;
             break;
           } else {
             std::this_thread::sleep_for(100us);

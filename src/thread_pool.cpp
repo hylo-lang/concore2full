@@ -28,7 +28,9 @@ thread_pool::~thread_pool() {
   join();
 }
 
-void thread_pool::enqueue(detail::task_base* task) noexcept {
+void thread_pool::enqueue(concore2full_task* task) noexcept {
+  task->next_ = nullptr;
+
   // Note: using uint32_t, as we need to safely wrap around.
   uint32_t thread_count = threads_.size();
   assert(thread_count > 0);
@@ -63,7 +65,7 @@ void thread_pool::thread_data::request_stop() noexcept {
   should_stop_ = true;
   cv_.notify_one();
 }
-bool thread_pool::thread_data::try_push(detail::task_base* task) noexcept {
+bool thread_pool::thread_data::try_push(concore2full_task* task) noexcept {
   // Fail if we can't acquire the lock.
   std::unique_lock lock{bottleneck_, std::try_to_lock};
   if (!lock)
@@ -77,7 +79,7 @@ bool thread_pool::thread_data::try_push(detail::task_base* task) noexcept {
     cv_.notify_one();
   return true;
 }
-void thread_pool::thread_data::push(detail::task_base* task) noexcept {
+void thread_pool::thread_data::push(concore2full_task* task) noexcept {
   // Add the task at the back of the queue.
   std::lock_guard lock{bottleneck_};
   bool was_empty = tasks_.empty();
@@ -86,13 +88,13 @@ void thread_pool::thread_data::push(detail::task_base* task) noexcept {
   if (was_empty)
     cv_.notify_one();
 }
-detail::task_base* thread_pool::thread_data::try_pop() noexcept {
+concore2full_task* thread_pool::thread_data::try_pop() noexcept {
   std::unique_lock lock{bottleneck_, std::try_to_lock};
   if (!lock || tasks_.empty())
     return nullptr;
   return tasks_.pop_front();
 }
-detail::task_base* thread_pool::thread_data::pop() noexcept {
+concore2full_task* thread_pool::thread_data::pop() noexcept {
   std::unique_lock lock{bottleneck_};
   while (tasks_.empty()) {
     if (should_stop_)
@@ -125,7 +127,7 @@ void thread_pool::thread_main(int index) noexcept {
     // First check if we need to restore this thread to somebody else.
     this_thread::inversion_checkpoint();
 
-    detail::task_base* to_execute{nullptr};
+    concore2full_task* to_execute{nullptr};
     int current_index = 0;
 
     // Try to pop a task from the first thread data available.
@@ -148,7 +150,7 @@ void thread_pool::thread_main(int index) noexcept {
 
     assert(to_execute);
     profiling::zone zone2{CURRENT_LOCATION_N("execute")};
-    to_execute->execute(current_index);
+    to_execute->task_function_(to_execute, current_index);
   }
 
   // Ensure we finish on the same thread

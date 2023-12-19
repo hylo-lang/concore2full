@@ -1,6 +1,6 @@
 #pragma once
 
-#include "concore2full/detail/task_base.h"
+#include "concore2full/c/task.h"
 #include "concore2full/detail/task_queue.h"
 #include "concore2full/profiling.h"
 
@@ -31,7 +31,7 @@ public:
    * @brief Enqueue a task for execution.
    * @param task The task to be executed on this thread pool.
    */
-  void enqueue(detail::task_base* task) noexcept;
+  void enqueue(concore2full_task* task) noexcept;
 
   //! Requests the thread to stop. The threads will stop after executing all the submitted work.
   void request_stop() noexcept;
@@ -59,7 +59,7 @@ private:
      *
      * @sa push()
      */
-    bool try_push(detail::task_base* task) noexcept;
+    bool try_push(concore2full_task* task) noexcept;
 
     /**
      * @brief Pushes a task to the queue.
@@ -69,7 +69,7 @@ private:
      *
      * @sa try_push()
      */
-    void push(detail::task_base* task) noexcept;
+    void push(concore2full_task* task) noexcept;
 
     /**
      * @brief Try popping a task to execute.
@@ -81,7 +81,7 @@ private:
      *
      * @sa pop()
      */
-    [[nodiscard]] detail::task_base* try_pop() noexcept;
+    [[nodiscard]] concore2full_task* try_pop() noexcept;
 
     /**
      * @brief Pop a task to execute
@@ -96,7 +96,7 @@ private:
      *
      * @sa try_pop()
      */
-    [[nodiscard]] detail::task_base* pop() noexcept;
+    [[nodiscard]] concore2full_task* pop() noexcept;
 
     //! Wake up the worker thread.
     //! This is needed in the case that the current thread needs to be reclaimed.
