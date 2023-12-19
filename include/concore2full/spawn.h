@@ -60,69 +60,38 @@ private:
   }
 };
 
-} // namespace detail
+//! Holder for a spawn frame, that can be either a shared_ptr or a direct object.
+template <typename Fn, bool Escaping = false> struct frame_holder {
+  using frame_t = full_spawn_frame<Fn>;
 
-/**
- * @brief The state of a spawned execution.
- * @tparam Fn The type of the functor used for spawning concurrent work.
- *
- * This represents the result of a `spawn` call, containing the state associated with the spawned
- * work. It will hold the data needed to execute the spawned computation and get its results.
- *
- * It can only be constructed through calling the `spawn()` function.
- *
- * It provides mechanisms for the main thread of execution to *await* the finish of the
- * computation. That is, continue when the computation is finished. If the main thread of execution
- * finishes first, then *thread inversion* will happen on the await point: the spawned thread will
- * continue the main work, while the main thread will be suspended. However, no OS thread will be
- * blocked.
- *
- * It exposes the type of the result of the spawned computation.
- *
- * If the object is destroyed before the spawned work finishes, the work will be cancelled.
- *
- * @sa spawn()
- */
-template <typename Fn> class spawn_state {
-public:
-  ~spawn_state() = default;
+  frame_holder(Fn&& f) : frame_(std::forward<Fn>(f)) {}
   //! No copy, no move
-  spawn_state(const spawn_state&) = delete;
+  frame_holder(const frame_holder&) = delete;
 
-  //! The type returned by the spawned computation.
-  using res_t = typename detail::full_spawn_frame<Fn>::res_t;
-
-  /**
-   * @brief Await the result of the computation.
-   * @return The result of the computation; throws if the operation was cancelled.
-   *
-   * If the main thread of execution arrives at this point after the work is done, this will simply
-   * return the result of the work. If the main thread of execution arrives here before the work is
-   * completed, a "thread inversion" happens, and the main thread of execution continues work on
-   * the coroutine that was just spawned.
-   */
-  res_t await() {
-    concore2full_await(&base_);
-    return base_.value();
-  }
+  frame_t& get() noexcept { return frame_; }
 
 private:
-  //! The base operation state, stored in dynamic memory, so that we can move this object.
-  detail::full_spawn_frame<Fn> base_;
-
-  template <typename F> friend auto spawn(F&& f);
-
-  //! Private constructor. `spawn` will call this.
-  spawn_state(Fn&& f) : base_(std::forward<Fn>(f)) { base_.do_spawn(); }
+  frame_t frame_;
 };
 
-//! Same as `spawn_state`, but allows the spawned function to escape the scope of the caller.
-//! Used to implement weekly-structured concurrency.
-template <typename Fn> class escaping_spawn_state {
+template <typename Fn> struct frame_holder<Fn, true> {
+  using frame_t = full_spawn_frame<Fn>;
+
+  frame_holder(Fn&& f) : frame_(std::make_shared<frame_t>(std::forward<Fn>(f))) {}
+
+  frame_t& get() noexcept { return *frame_.get(); }
+
+private:
+  std::shared_ptr<frame_t> frame_;
+};
+
+} // namespace detail
+
+//! A future object resulting from a `spawn` call.
+//! The `await()` method needs to be called exactly once.
+template <typename Fn, bool Escaping> class spawn_future {
 public:
-  ~escaping_spawn_state() = default;
-  escaping_spawn_state(const escaping_spawn_state&) = default;
-  escaping_spawn_state(escaping_spawn_state&&) = default;
+  ~spawn_future() = default;
 
   //! The type returned by the spawned computation.
   using res_t = typename detail::full_spawn_frame<Fn>::res_t;
@@ -137,43 +106,40 @@ public:
    * the coroutine that was just spawned.
    */
   res_t await() {
-    concore2full_await(base_.get());
-    return base_->value();
+    concore2full_await(&frame_.get());
+    return frame_.get().value();
   }
 
 private:
-  using base_t = detail::full_spawn_frame<Fn>;
+  //! The frame holding the state of the spawned computation.
+  detail::frame_holder<Fn, Escaping> frame_;
 
-  //! The base operation state, stored in dynamic memory, so that we can move this object.
-  std::shared_ptr<base_t> base_;
-
+  template <typename F> friend auto spawn(F&& f);
   template <typename F> friend auto escaping_spawn(F&& f);
 
   //! Private constructor. `spawn` will call this.
-  escaping_spawn_state(Fn&& f) : base_(std::make_shared<base_t>(base_t{std::forward<Fn>(f)})) {
-    base_->do_spawn();
-  }
+  //! We rely on the fact that the object will be constructed in its final destination storage.
+  spawn_future(Fn&& f) : frame_(std::forward<Fn>(f)) { frame_.get().do_spawn(); }
 };
 
 /**
  * @brief Spawn work with the default scheduler.
  * @tparam Fn The type of the function to execute.
  * @param f The function representing the work that needs to be executed asynchronously.
- * @return A `spawn_state` object; this object cannot be copied or moved
+ * @return A `spawn_future` object; this object cannot be copied or moved
  *
  * This will use the default scheduler to spawn new work concurrently.
  *
- * The returned state object needs to stay alive for the entire duration of the computation. If the
- * object is destructed, the computation is cancelled.
+ * The returned state object needs to stay alive for the entire duration of the computation.
  */
 template <typename Fn> inline auto spawn(Fn&& f) {
-  using op_t = spawn_state<Fn>;
-  return op_t{std::forward<Fn>(f)};
+  return spawn_future<Fn, false>{std::forward<Fn>(f)};
 }
 
+//! Same as `spawn`, but the returned future can be copied and moved.
+//! The caller is responsible for calling `await` exactly once on the returned object.
 template <typename Fn> inline auto escaping_spawn(Fn&& f) {
-  using op_t = escaping_spawn_state<Fn>;
-  return op_t{std::forward<Fn>(f)};
+  return spawn_future<Fn, true>{std::forward<Fn>(f)};
 }
 
 } // namespace concore2full
