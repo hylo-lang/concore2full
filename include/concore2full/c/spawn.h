@@ -43,6 +43,10 @@ void concore2full_spawn(struct concore2full_spawn_frame* frame, concore2full_spa
 //! Await the async computation represented by `frame` to be finished.
 void concore2full_await(struct concore2full_spawn_frame* frame);
 
+// TEMPORARY WORKAROUND
+
+void concore2full_spawn2(struct concore2full_spawn_frame* frame, concore2full_spawn_function_t* f);
+
 #ifdef __cplusplus
 }
 #endif
