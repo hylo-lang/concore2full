@@ -116,3 +116,8 @@ extern "C" void concore2full_await(struct concore2full_spawn_frame* frame) {
   }
   // This point will be executed by the thread that finishes last.
 }
+
+extern "C" void concore2full_spawn2(struct concore2full_spawn_frame* frame,
+                                    concore2full_spawn_function_t* f) {
+  concore2full_spawn(frame, *f);
+}
