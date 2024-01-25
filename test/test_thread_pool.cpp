@@ -156,9 +156,7 @@ TEST_CASE("thread_pool can enqueue multiple tasks at once, and execute them", "[
   struct my_task : concore2full_task {
     std::atomic<int>& count_;
 
-    explicit my_task(std::atomic<int>& count) : count_(count) {
-      task_function_ = &execute;
-    }
+    explicit my_task(std::atomic<int>& count) : count_(count) { task_function_ = &execute; }
 
     static void execute(concore2full_task* task, int tid) noexcept {
       auto self = static_cast<my_task*>(task);
