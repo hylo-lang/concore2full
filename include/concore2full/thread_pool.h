@@ -33,6 +33,18 @@ public:
    */
   void enqueue(concore2full_task* task) noexcept;
 
+  /**
+   * @brief Bulk enqueue a number of tasks.
+   * @param tasks Array of tasks that need to be executed.
+   * @param count The number of tasks in the array.
+   */
+  template <std::derived_from<concore2full_task> Task>
+  void enqueue_bulk(Task* tasks, int count) noexcept {
+    for (int i = 0; i < count; i++) {
+      enqueue(&tasks[i]);
+    }
+  }
+
   //! Requests the thread to stop. The threads will stop after executing all the submitted work.
   void request_stop() noexcept;
   //! Waits for all the threads to complete; should be called after `request_stop()`.

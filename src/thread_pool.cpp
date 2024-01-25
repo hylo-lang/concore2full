@@ -36,7 +36,7 @@ void thread_pool::enqueue(concore2full_task* task) noexcept {
   assert(thread_count > 0);
   uint32_t index = thread_index_to_push_to_.fetch_add(1, std::memory_order_relaxed) % thread_count;
 
-  // Try to push this to a worker thread without blcoking.
+  // Try to push this to a worker thread without blocking.
   for (uint32_t i = 0; i < thread_count; i++) {
     uint32_t current_index = (index + i) % thread_count;
     if (work_data_[current_index].try_push(task))
