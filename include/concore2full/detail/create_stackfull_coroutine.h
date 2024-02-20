@@ -3,6 +3,7 @@
 #include "concore2full/detail/context_function.h"
 #include "concore2full/detail/stack_control_structure.h"
 
+#include "concore2full/profiling.h"
 #include "concore2full/stack/stack_allocator.h"
 
 namespace concore2full {
@@ -57,11 +58,12 @@ template <typename C> inline void execution_context_entry(detail::transfer_t t) 
   assert(t.fctx);
 
   // Start executing the given function.
-  (void)profiling::zone{CURRENT_LOCATION_NC("callcc.start", profiling::color::green)}.set_value(
-      as_value(t.fctx));
+  profiling::zone_instant zone_start{CURRENT_LOCATION_N("callcc.start")};
+  zone_start.set_param("ctx", as_value(t.fctx));
+  zone_start.add_flow_terminate(reinterpret_cast<uint64_t>(control));
   t.fctx = std::invoke(control->main_function_, t.fctx);
-  (void)profiling::zone{CURRENT_LOCATION_NC("callcc.end", profiling::color::green)}.set_value(
-      as_value(t.fctx));
+  profiling::zone_instant zone_end{CURRENT_LOCATION_N("callcc.end")};
+  zone_end.set_param("ctx", as_value(t.fctx));
   assert(t.fctx);
 
   // Destroy the stack context.
@@ -86,6 +88,13 @@ inline continuation_t create_stackfull_coroutine(stack::stack_allocator auto&& a
                                                  context_function auto&& f) {
   auto* control =
       allocate_stack(std::forward<decltype(allocator)>(allocator), std::forward<decltype(f)>(f));
+  char name[32];
+  snprintf(name, sizeof(name), "coro-%p", control->stack_begin());
+  profiling::define_stack(control->stack_begin(), control->stack_end(), name);
+
+  profiling::zone_instant zone{CURRENT_LOCATION_N("callcc")};
+  zone.add_flow(reinterpret_cast<uint64_t>(control));
+  zone.add_flow(reinterpret_cast<uint64_t>(&zone));
 
   // Create a context for running the new code.
   using C = std::decay_t<decltype(*control)>;
@@ -93,7 +102,10 @@ inline continuation_t create_stackfull_coroutine(stack::stack_allocator auto&& a
                                                       execution_context_entry<C>);
   assert(ctx != nullptr);
   // Transfer the control to `execution_context_entry`, in the given context.
-  return context_core_api_jump_fcontext(ctx, control).fctx;
+  auto r = context_core_api_jump_fcontext(ctx, control).fctx;
+  profiling::zone_instant zone_done{CURRENT_LOCATION_N("callcc.done")};
+  zone_done.add_flow_terminate(reinterpret_cast<uint64_t>(&zone));
+  return r;
 }
 
 } // namespace detail

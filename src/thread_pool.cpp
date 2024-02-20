@@ -106,9 +106,14 @@ concore2full_task* thread_pool::thread_data::pop() noexcept {
 }
 void thread_pool::thread_data::wakeup() noexcept { cv_.notify_one(); }
 
+std::string thread_name(int index) {
+  return "worker-" + std::to_string(index);
+}
+
 void thread_pool::thread_main(int index) noexcept {
-  profiling::zone zone{CURRENT_LOCATION()};
-  zone.set_value(index);
+  concore2full::profiling::emit_thread_name_and_stack(thread_name(index).c_str());
+
+  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread start")};
 
   // Register a thread_reclaimer object
   struct my_thread_reclaimer : thread_reclaimer {
@@ -155,6 +160,8 @@ void thread_pool::thread_main(int index) noexcept {
 
   // Ensure we finish on the same thread
   t.revert();
+
+  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread end")};
 }
 
 } // namespace concore2full
