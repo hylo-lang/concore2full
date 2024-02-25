@@ -90,7 +90,10 @@ extern "C" void concore2full_spawn(struct concore2full_spawn_frame* frame,
   frame->task_.task_function_ = &execute_spawn_task;
   frame->task_.next_ = nullptr;
   frame->sync_state_ = ss_initial_state;
-  memset(&frame->switch_data_, 0, sizeof(concore2full_thread_switch_data));
+  frame->switch_data_.originator_.context_ = nullptr;
+  frame->switch_data_.originator_.thread_reclaimer_ = nullptr;
+  frame->switch_data_.target_.context_ = nullptr;
+  frame->switch_data_.target_.thread_reclaimer_ = nullptr;
   frame->user_function_ = f;
   concore2full::global_thread_pool().enqueue(&frame->task_);
 }
@@ -159,7 +162,7 @@ concore2full_thread_data* extract_continuation(concore2full_bulk_spawn_frame* fr
 void finalize_thread_of_execution(concore2full_bulk_spawn_frame* frame, bool is_last_thread) {
   // Obtain the index of the slot from which we need to extract.
   int count = frame->count_;
-  int prev_num_finalized = atomic_fetch_add(&frame->finalized_tasks_, 1);
+  atomic_fetch_add(&frame->finalized_tasks_, 1);
   if (is_last_thread) {
     // Last thread needs to ensure that all other threads have finalized their maintenance work
     // before returning to the continuation after the await point.
@@ -226,7 +229,10 @@ void concore2full_bulk_spawn(struct concore2full_bulk_spawn_frame* frame, int co
     frame->tasks_[i].next_ = nullptr;
     frame->tasks_[i].base_ = frame;
   }
-  memset(frame->threads_, 0, (count + 1) * sizeof(concore2full_thread_data));
+  for (int i = 0; i < count + 1; i++) {
+    frame->threads_[i].context_ = nullptr;
+    frame->threads_[i].thread_reclaimer_ = nullptr;
+  }
 
   concore2full::global_thread_pool().enqueue_bulk(frame->tasks_, count);
 }
@@ -238,7 +244,7 @@ void concore2full_bulk_spawn2(struct concore2full_bulk_spawn_frame* frame, int c
 void concore2full_bulk_await(struct concore2full_bulk_spawn_frame* frame) {
   // If all the workers have finished, we can return directly.
   uint64_t completed = atomic_load_explicit(&frame->completed_tasks_, std::memory_order_acquire);
-  if (completed == frame->count_)
+  if (completed == uint64_t(frame->count_))
     return;
 
   // We may need to switching threads, so we need a continuation.
