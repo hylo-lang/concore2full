@@ -4,6 +4,13 @@
 #include <context_core_api.h>
 
 #ifdef __cplusplus
+#include <atomic>
+#define CONCORE2FULL_ATOMIC(x) std::atomic<x>
+#else
+#define CONCORE2FULL_ATOMIC(x) volatile x
+#endif
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -11,10 +18,10 @@ extern "C" {
 struct concore2full_thread_data {
 
   //! An execution context running on the OS thread.
-  context_core_api_fcontext_t context_;
+  CONCORE2FULL_ATOMIC(context_core_api_fcontext_t) context_;
 
   //! Data used to wake-up the thread for performing a thread reclamation.
-  void* thread_reclaimer_;
+  CONCORE2FULL_ATOMIC(void*) thread_reclaimer_;
 };
 
 //! Data used to switch threads between control-flows.
@@ -28,8 +35,10 @@ struct concore2full_thread_switch_data {
 };
 
 //! Stores data about the current (`c` and current thread reclaimer) thread into `data`.
-void concore2full_store_thread_data(struct concore2full_thread_data* data,
-                                    context_core_api_fcontext_t c);
+void concore2full_store_thread_data_relaxed(struct concore2full_thread_data* data,
+                                            context_core_api_fcontext_t c);
+void concore2full_store_thread_data_release(struct concore2full_thread_data* data,
+                                            context_core_api_fcontext_t c);
 
 //! Switches the current thread reclaimer to the one hold by `data` and returns the continuation we
 //! should be switching to.

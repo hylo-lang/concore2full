@@ -38,9 +38,10 @@ public:
   }
   //! Called by the originator control-flow to finish the switch.
   detail::continuation_t originator_end() {
-    this_thread::set_thread_reclaimer(
-        static_cast<thread_reclaimer*>(switch_data_.target_.thread_reclaimer_));
-    return std::exchange(switch_data_.target_.context_, nullptr);
+    this_thread::set_thread_reclaimer(static_cast<thread_reclaimer*>(
+        atomic_load_explicit(&switch_data_.target_.thread_reclaimer_, std::memory_order_relaxed)));
+    return atomic_exchange_explicit(&switch_data_.target_.context_, nullptr,
+                                    std::memory_order_relaxed);
   }
 
   //! Called by the secondary control-flow when entering the switch process.
@@ -50,9 +51,10 @@ public:
   }
   //! Called by the secondary control-flow when exiting the switch process.
   detail::continuation_t secondary_end() {
-    this_thread::set_thread_reclaimer(
-        static_cast<thread_reclaimer*>(switch_data_.originator_.thread_reclaimer_));
-    return std::exchange(switch_data_.originator_.context_, nullptr);
+    this_thread::set_thread_reclaimer(static_cast<thread_reclaimer*>(atomic_load_explicit(
+        &switch_data_.originator_.thread_reclaimer_, std::memory_order_relaxed)));
+    return atomic_exchange_explicit(&switch_data_.originator_.context_, nullptr,
+                                    std::memory_order_relaxed);
   }
 
 private:

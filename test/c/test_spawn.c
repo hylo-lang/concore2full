@@ -8,7 +8,7 @@ struct spawn_frame {
   int captures_;
 };
 
-void spawn_function(struct concore2full_spawn_frame* base_frame) {
+static void spawn_function(struct concore2full_spawn_frame* base_frame) {
   struct spawn_frame* frame = (struct spawn_frame*)base_frame;
   printf("Hello, concurrent world!\n");
   frame->result_ = 13 + frame->captures_;

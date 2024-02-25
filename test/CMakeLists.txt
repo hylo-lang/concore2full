@@ -12,6 +12,7 @@ set(sourceFiles
 "sketch_cancellation.cpp"
 "tests_c.cpp"
 "c/test_spawn.c"
+"c/test_bulk_spawn.c"
 )
 
 find_package(Catch2 REQUIRED CONFIG)

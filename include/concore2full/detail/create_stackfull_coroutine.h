@@ -36,7 +36,9 @@ inline auto allocate_stack(stack::stack_allocator auto&& allocator, context_func
 /// After this is called, the coroutine will be destroyed.
 template <typename C>
 inline detail::transfer_t execution_context_exit(detail::transfer_t t) noexcept {
-  destroy(reinterpret_cast<C*>(t.data));
+  auto control = reinterpret_cast<C*>(t.data);
+  profiling::zone_instant{CURRENT_LOCATION()}.add_flow_terminate(reinterpret_cast<uint64_t>(control));
+  destroy(control);
   return {nullptr, nullptr};
 }
 
@@ -56,15 +58,15 @@ template <typename C> inline void execution_context_entry(detail::transfer_t t) 
   auto* control = reinterpret_cast<C*>(t.data);
   assert(control);
   assert(t.fctx);
+  {
+    profiling::zone zone{CURRENT_LOCATION_N("coro.execute")};
+    zone.add_flow(reinterpret_cast<uint64_t>(control));
+    zone.set_param("ctx", as_value(t.fctx));
 
-  // Start executing the given function.
-  profiling::zone_instant zone_start{CURRENT_LOCATION_N("callcc.start")};
-  zone_start.set_param("ctx", as_value(t.fctx));
-  zone_start.add_flow_terminate(reinterpret_cast<uint64_t>(control));
-  t.fctx = std::invoke(control->main_function_, t.fctx);
-  profiling::zone_instant zone_end{CURRENT_LOCATION_N("callcc.end")};
-  zone_end.set_param("ctx", as_value(t.fctx));
-  assert(t.fctx);
+    // Start executing the given function.
+    t.fctx = std::invoke(control->main_function_, t.fctx);
+    assert(t.fctx);
+  }
 
   // Destroy the stack context.
   context_core_api_ontop_fcontext(t.fctx, control, execution_context_exit<C>);
@@ -91,21 +93,14 @@ inline continuation_t create_stackfull_coroutine(stack::stack_allocator auto&& a
   char name[32];
   snprintf(name, sizeof(name), "coro-%p", control->stack_begin());
   profiling::define_stack(control->stack_begin(), control->stack_end(), name);
-
-  profiling::zone_instant zone{CURRENT_LOCATION_N("callcc")};
-  zone.add_flow(reinterpret_cast<uint64_t>(control));
-  zone.add_flow(reinterpret_cast<uint64_t>(&zone));
+  profiling::zone_instant{CURRENT_LOCATION_N("callcc.make_fcontext")}.add_flow(as_value(control));
 
   // Create a context for running the new code.
   using C = std::decay_t<decltype(*control)>;
   continuation_t ctx = context_core_api_make_fcontext(control->stack_end(), control->useful_size(),
                                                       execution_context_entry<C>);
   assert(ctx != nullptr);
-  // Transfer the control to `execution_context_entry`, in the given context.
-  auto r = context_core_api_jump_fcontext(ctx, control).fctx;
-  profiling::zone_instant zone_done{CURRENT_LOCATION_N("callcc.done")};
-  zone_done.add_flow_terminate(reinterpret_cast<uint64_t>(&zone));
-  return r;
+  return context_core_api_jump_fcontext(ctx, control).fctx;
 }
 
 } // namespace detail

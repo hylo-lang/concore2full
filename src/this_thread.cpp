@@ -15,6 +15,7 @@ void set_thread_reclaimer(thread_reclaimer* new_reclaimer) {
 }
 
 void inversion_checkpoint() {
+  profiling::zone zone{CURRENT_LOCATION()};
   // Check if some other thread requested us to switch.
   auto& cur_thread = detail::get_current_thread_info();
   auto* first_thread =

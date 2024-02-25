@@ -40,6 +40,7 @@ inline continuation_t callcc(std::allocator_arg_t, stack::stack_allocator auto&&
 /// @sa resume()
 inline continuation_t callcc(std::allocator_arg_t, stack::stack_allocator auto&& salloc,
                              context_function auto&& f) {
+  profiling::zone zone{CURRENT_LOCATION()};
   return detail::create_stackfull_coroutine(std::forward<decltype(salloc)>(salloc),
                                             std::forward<decltype(f)>(f));
 }
@@ -62,8 +63,7 @@ inline continuation_t callcc(context_function auto&& f) {
 ///   - resumue the execution to the control flow indicated by `continuation` (a `resume` call)
 ///   - the `resume()` call that will continue will return `c1`
 inline continuation_t resume(continuation_t continuation) {
-  (void)profiling::zone_instant{CURRENT_LOCATION()}.set_param("ctx",
-                                                                detail::as_value(continuation));
+  profiling::zone zone{CURRENT_LOCATION()};
   assert(continuation);
   return context_core_api_jump_fcontext(continuation, nullptr).fctx;
 }

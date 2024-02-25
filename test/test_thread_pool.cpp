@@ -11,7 +11,10 @@ using namespace std::chrono_literals;
 
 template <std::invocable Fn> struct fun_task : concore2full_task {
   Fn f_;
-  explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) { task_function_ = &execute; }
+  explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {
+    task_function_ = &execute;
+    next_ = nullptr;
+  }
 
   static void execute(concore2full_task* task, int) noexcept {
     auto self = static_cast<fun_task*>(task);
@@ -103,6 +106,7 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the available hardware 
       explicit my_task(std::atomic<int>& task_counter, int wait_limit)
           : task_counter_(task_counter), wait_limit_(wait_limit) {
         task_function_ = &execute;
+        next_ = nullptr;
       }
 
       static void execute(concore2full_task* task, int) noexcept {
@@ -156,7 +160,10 @@ TEST_CASE("thread_pool can enqueue multiple tasks at once, and execute them", "[
   struct my_task : concore2full_task {
     std::atomic<int>& count_;
 
-    explicit my_task(std::atomic<int>& count) : count_(count) { task_function_ = &execute; }
+    explicit my_task(std::atomic<int>& count) : count_(count) {
+      task_function_ = &execute;
+      next_ = nullptr;
+    }
 
     static void execute(concore2full_task* task, int tid) noexcept {
       auto self = static_cast<my_task*>(task);
