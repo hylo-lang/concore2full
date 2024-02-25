@@ -1,16 +1,10 @@
 #ifndef __CONCORE2FULL_BULK_SPAWN_H__
 #define __CONCORE2FULL_BULK_SPAWN_H__
 
+#include "concore2full/c/atomic_wrapper.h"
 #include "concore2full/c/task.h"
-#include "concore2full/c/thread_switch.h"
+#include "concore2full/c/thread_suspension.h"
 #include <context_core_api.h>
-
-#ifdef __cplusplus
-#include <atomic>
-#define CONCORE2FULL_ATOMIC(x) std::atomic<x>
-#else
-#define CONCORE2FULL_ATOMIC(x) volatile x
-#endif
 
 #include <stddef.h>
 #include <stdint.h>
@@ -31,15 +25,15 @@ struct concore2full_bulk_spawn_task;
 struct concore2full_bulk_spawn_frame {
 
   //! The number of work item for the bulk operation.
-  int count_;
+  uint32_t count_;
 
   //! The number of started tasks.
-  CONCORE2FULL_ATOMIC(int) started_tasks_;
+  CONCORE2FULL_ATOMIC(uint32_t) started_tasks_;
 
   //! The number of completed tasks.
-  CONCORE2FULL_ATOMIC(int) completed_tasks_;
+  CONCORE2FULL_ATOMIC(uint32_t) completed_tasks_;
   //! The number of finalized tasks.
-  CONCORE2FULL_ATOMIC(int) finalized_tasks_;
+  CONCORE2FULL_ATOMIC(uint32_t) finalized_tasks_;
 
   //! The user function to be called to execute the async work.
   concore2full_bulk_spawn_function_t user_function_;
@@ -49,10 +43,13 @@ struct concore2full_bulk_spawn_frame {
 
   //! The data needed to interact with each thread of execution; at position `_count + 1` we store
   //! the information about the thread doing the await.
-  struct concore2full_thread_data* threads_;
+  struct concore2full_thread_suspension_sync* threads_;
+
+  // More data will follow here, depending on the number of work items.
 };
 
-//! Returns the full size of the `concore2full_bulk_spawn_frame` structure, given the number of work items.
+//! Returns the full size of the `concore2full_bulk_spawn_frame` structure, given the number of work
+//! items.
 size_t concore2full_frame_size(int count);
 
 //! Asynchronously executes `f`, using the given `frame` to hold the state.

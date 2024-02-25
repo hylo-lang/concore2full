@@ -3,7 +3,6 @@
 #include "concore2full/c/spawn.h"
 #include "concore2full/c/task.h"
 #include "concore2full/detail/callcc.h"
-#include "concore2full/detail/thread_switch_helper.h"
 #include "concore2full/this_thread.h"
 
 #include <memory>

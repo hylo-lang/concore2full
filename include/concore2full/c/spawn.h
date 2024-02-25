@@ -2,7 +2,7 @@
 #define __CONCORE2FULL_SPAWN_H__
 
 #include "concore2full/c/task.h"
-#include "concore2full/c/thread_switch.h"
+#include "concore2full/c/thread_suspension.h"
 #include <context_core_api.h>
 
 #ifdef __cplusplus
@@ -30,8 +30,11 @@ struct concore2full_spawn_frame {
   //! The state of the computation, with respect to reaching the await point.
   CONCORE2FULL_ATOMIC(int) sync_state_;
 
-  //! Data used to switch threads between control-flows.
-  struct concore2full_thread_switch_data switch_data_;
+  //! The suspension point of the originator of the spawn.
+  struct concore2full_thread_suspension originator_;
+
+  //! The suspension point of the thread that is performing the spawned work.
+  struct concore2full_thread_suspension secondary_thread_;
 
   //! The user function to be called to execute the async work.
   concore2full_spawn_function_t user_function_;

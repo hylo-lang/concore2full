@@ -28,8 +28,8 @@ void inversion_checkpoint() {
     // The switch data will be stored on the first thread.
     (void)detail::callcc([first_thread](detail::continuation_t c) -> detail::continuation_t {
       // Switch the data for this thread.
-      first_thread->switch_data_.secondary_start(c);
-      auto next_for_us = first_thread->switch_data_.secondary_end();
+      concore2full_store_thread_suspension(&first_thread->target_, c);
+      auto next_for_us = concore2full_use_thread_suspension(&first_thread->originator_);
 
       // Tell the originator thread that it can continue.
       first_thread->switch_control_.waiting_semaphore_.release();
