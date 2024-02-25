@@ -11,10 +11,10 @@ namespace concore2full {
 namespace detail {
 
 /// A handle for a continuation.
-/// This can be thought as a point from which we can susoend and resume exection of the program.
+/// This can be thought as a point from which we can suspend and resume execution of the program.
 using continuation_t = context_core_api_fcontext_t;
 
-/// The type of object used for transferring a conttinuation handle with some data.
+/// The type of object used for transferring a continuation handle with some data.
 using transfer_t = context_core_api_transfer_t;
 
 /// Returns a value from the continuation; to be used in profiling.

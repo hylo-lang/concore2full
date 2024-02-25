@@ -55,15 +55,15 @@ public:
 
 private:
   //! Data corresponding to a thread. Contains the queue of tasks corresponding to this thread, and
-  //! the required syncrhonization.
+  //! the required synchronization.
   class thread_data {
   public:
     //! Requests the thread operating on this data to stop.
     void request_stop() noexcept;
 
     /**
-     * @brief Try pusing a task into the queue.
-     * @param task The task that neds to be executed.
+     * @brief Try pushing a task into the queue.
+     * @param task The task that needs to be executed.
      * @return True if succeeded to enqueue the task.
      *
      * If there is another thread that has the acquired the lock (for pushing or popping tasks),

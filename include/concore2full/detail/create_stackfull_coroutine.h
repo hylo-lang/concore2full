@@ -27,7 +27,7 @@ inline auto allocate_stack(stack::stack_allocator auto&& allocator, context_func
 
 /// @brief Called to finish the execution in the coroutine
 /// @tparam C The type of control structure we use for the coroutine
-/// @param t The transfer object cotaining the control structure as data.
+/// @param t The transfer object containing the control structure as data.
 /// @return A transfer_t object with nulls.
 ///
 /// We use this `(transfer_t) -> transfer_t` as this is meant to be passed to
@@ -48,7 +48,7 @@ inline detail::transfer_t execution_context_exit(detail::transfer_t t) noexcept 
 
 /// @brief The entry point for a coroutine
 /// @tparam C The type of the control structure.
-/// @param t The calling contiunuation and data pointing to the control structure.
+/// @param t The calling continuation and data pointing to the control structure.
 ///
 /// This will be the entry function for the coroutine. It is a wrapper on top of the function given
 /// to create the coroutine, but also handles the destruction of the coroutine.

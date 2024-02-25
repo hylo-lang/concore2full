@@ -21,7 +21,7 @@ template <std::invocable Fn> auto sync_execute(Fn&& f) {
   scoped_thread_pinpoint thread_pinpoint;
 
   // Invoke the given function.
-  // After ivoking the function we may continue from a different thread; however, out thread
+  // After invoking the function we may continue from a different thread; however, out thread
   // pinpoint will revert to the original thread.
   return std::invoke(std::forward<Fn>(f));
 }

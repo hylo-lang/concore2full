@@ -60,7 +60,7 @@ inline continuation_t callcc(context_function auto&& f) {
 ///
 /// This is equivalent to:
 ///   - suspend the current control flow; save continuation point `c1`
-///   - resumue the execution to the control flow indicated by `continuation` (a `resume` call)
+///   - resume the execution to the control flow indicated by `continuation` (a `resume` call)
 ///   - the `resume()` call that will continue will return `c1`
 inline continuation_t resume(continuation_t continuation) {
   profiling::zone zone{CURRENT_LOCATION()};
