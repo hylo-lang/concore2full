@@ -1,8 +1,12 @@
 #pragma once
 
-#include "concore2full/detail/thread_switch_helper.h"
+#include "concore2full/c/thread_suspension.h"
 
 #include <semaphore>
+
+namespace concore2full {
+class thread_reclaimer;
+}
 
 namespace concore2full::detail {
 
@@ -38,10 +42,16 @@ struct thread_switch_control {
 struct thread_info {
   //! The object that needs to be notified when we want to switch control flow with another thread.
   thread_reclaimer* thread_reclaimer_{nullptr};
-  //! The data used for swtiching control flow with other threads.
+  //! The data used for switching control flow with other threads.
   thread_switch_control switch_control_;
-  //! Data used to switch threads between control-flows.
-  detail::thread_switch_helper switch_data_;
+  //! The thread that is originates the switch.
+  struct concore2full_thread_suspension originator_ {
+    nullptr, nullptr
+  };
+  //! The target thread for the switch.
+  struct concore2full_thread_suspension target_ {
+    nullptr, nullptr
+  };
 };
 
 //! Get the data associated with the current thread.

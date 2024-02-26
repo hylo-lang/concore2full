@@ -14,7 +14,7 @@ int long_task(int input) {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
   int result = input;
   for (int i = 0; i < 3; i++) {
-    // concore2full::profiling::sleep_for(110ms);
+    concore2full::profiling::sleep_for(110ms);
     result += 1;
   }
   return result;
@@ -36,11 +36,15 @@ int concurrency_example() {
 }
 
 TEST_CASE("simple example using concore2full", "[smoke]") {
+  concore2full::profiling::emit_thread_name_and_stack("main");
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  concore2full::profiling::sleep_for(100ms);
   concore2full::sync_execute([] {
-    // concore2full::profiling::sleep_for(100ms);
+    concore2full::profiling::sleep_for(100ms);
     /*int r =*/concurrency_example();
     // std::cout << r << "\n";
-    // concore2full::profiling::sleep_for(100ms);
+    concore2full::profiling::sleep_for(100ms);
   });
+  concore2full::profiling::zone zone2{CURRENT_LOCATION_N("at the end")};
+  concore2full::profiling::sleep_for(100ms);
 }

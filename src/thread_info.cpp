@@ -1,5 +1,8 @@
 #include "thread_info.h"
 
+#include <cassert>
+#include <mutex>
+
 namespace concore2full::detail {
 
 //! The data associated with each thread.

@@ -36,7 +36,7 @@ void thread_pool::enqueue(concore2full_task* task) noexcept {
   assert(thread_count > 0);
   uint32_t index = thread_index_to_push_to_.fetch_add(1, std::memory_order_relaxed) % thread_count;
 
-  // Try to push this to a worker thread without blcoking.
+  // Try to push this to a worker thread without blocking.
   for (uint32_t i = 0; i < thread_count; i++) {
     uint32_t current_index = (index + i) % thread_count;
     if (work_data_[current_index].try_push(task))
@@ -106,9 +106,12 @@ concore2full_task* thread_pool::thread_data::pop() noexcept {
 }
 void thread_pool::thread_data::wakeup() noexcept { cv_.notify_one(); }
 
+std::string thread_name(int index) { return "worker-" + std::to_string(index); }
+
 void thread_pool::thread_main(int index) noexcept {
-  profiling::zone zone{CURRENT_LOCATION()};
-  zone.set_value(index);
+  concore2full::profiling::emit_thread_name_and_stack(thread_name(index).c_str());
+
+  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread start")};
 
   // Register a thread_reclaimer object
   struct my_thread_reclaimer : thread_reclaimer {
@@ -155,6 +158,8 @@ void thread_pool::thread_main(int index) noexcept {
 
   // Ensure we finish on the same thread
   t.revert();
+
+  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread end")};
 }
 
 } // namespace concore2full

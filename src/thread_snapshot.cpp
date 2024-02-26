@@ -1,3 +1,4 @@
+#include <concore2full/this_thread.h>
 #include <concore2full/thread_reclaimer.h>
 #include <concore2full/thread_snapshot.h>
 
@@ -48,8 +49,7 @@ void thread_snapshot::perform_switch() {
   (void)detail::callcc([this](detail::continuation_t c) -> detail::continuation_t {
     // Use the switch data from our thread.
     auto& cur_thread = detail::get_current_thread_info();
-    auto* switch_data = &cur_thread.switch_data_;
-    switch_data->originator_start(c);
+    concore2full_store_thread_suspension(&cur_thread.originator_, c);
     // NOTE: theoretically there is a race condition here: two threads might request to switch back
     // to the same thred. That is, two control-flows will desire to continue on the same thread at
     // the same time. Because of the structured way we allow concurrency, this shouldn't happen.
@@ -57,7 +57,7 @@ void thread_snapshot::perform_switch() {
     assert(old == nullptr);
     (void)old;
     // Note: After this line, the other thread can anytime continue with the control flow,
-    // destryoing `this` pointer.
+    // destroying `this` pointer.
 
     // If this thread is controlled by a thread pool which has a reclaimer registered, tell it to
     // start reclaiming.
@@ -72,7 +72,7 @@ void thread_snapshot::perform_switch() {
     cur_thread.switch_control_.switch_complete();
 
     // Switch to the continuation provided by our original thread.
-    return cur_thread.switch_data_.originator_end();
+    return concore2full_use_thread_suspension(&cur_thread.target_);
   });
   // We resume here on the original thread.
   assert(original_thread_ == &detail::get_current_thread_info());

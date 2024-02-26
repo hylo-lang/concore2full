@@ -3,7 +3,7 @@
 #include "concore2full/c/spawn.h"
 #include "concore2full/c/task.h"
 #include "concore2full/detail/callcc.h"
-#include "concore2full/detail/thread_switch_helper.h"
+#include "concore2full/detail/value_holder.h"
 #include "concore2full/this_thread.h"
 
 #include <memory>
@@ -12,25 +12,6 @@
 namespace concore2full {
 
 namespace detail {
-
-template <typename T> struct value_holder {
-  using value_t = std::remove_cvref_t<T>;
-
-  value_holder() = default;
-
-  value_t& value() noexcept { return value_; }
-
-private:
-  value_t value_;
-};
-
-template <> struct value_holder<void> {
-  using value_t = void;
-
-  value_holder() = default;
-
-  void value() noexcept {}
-};
 
 //! Holds core spawn frame, the spawn function and the result of the spawn function.
 template <typename Fn>

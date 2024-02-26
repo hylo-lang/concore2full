@@ -3,7 +3,7 @@
 namespace concore2full {
 
 /**
- * @brief Defines the entitiy that needs to be notified when reclaiming a thread.
+ * @brief Defines the entity that needs to be notified when reclaiming a thread.
  *
  * To be used by library authors who design thread pool classes.
  *

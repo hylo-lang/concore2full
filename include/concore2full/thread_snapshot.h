@@ -7,7 +7,7 @@ struct thread_info;
 }
 
 /**
- * @brief A snapshot of the currrent thread.
+ * @brief A snapshot of the current thread.
  *
  * Keeps track of the current thread. We have the ability to get back to the thread that was used
  * when the constructor was called.

@@ -11,6 +11,8 @@ template <std::invocable Fn> auto sync_execute(Fn&& f) {
   struct scoped_thread_pinpoint {
     scoped_thread_pinpoint() = default;
     ~scoped_thread_pinpoint() {
+      concore2full::profiling::zone zone{CURRENT_LOCATION()};
+      zone.set_category("blocking");
       // Ensure we get back on the original thread we had on constructor.
       t_.revert();
     }
@@ -19,7 +21,7 @@ template <std::invocable Fn> auto sync_execute(Fn&& f) {
   scoped_thread_pinpoint thread_pinpoint;
 
   // Invoke the given function.
-  // After ivoking the function we may continue from a different thread; however, out thread
+  // After invoking the function we may continue from a different thread; however, out thread
   // pinpoint will revert to the original thread.
   return std::invoke(std::forward<Fn>(f));
 }

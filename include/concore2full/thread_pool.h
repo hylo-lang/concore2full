@@ -33,6 +33,18 @@ public:
    */
   void enqueue(concore2full_task* task) noexcept;
 
+  /**
+   * @brief Bulk enqueue a number of tasks.
+   * @param tasks Array of tasks that need to be executed.
+   * @param count The number of tasks in the array.
+   */
+  template <std::derived_from<concore2full_task> Task>
+  void enqueue_bulk(Task* tasks, int count) noexcept {
+    for (int i = 0; i < count; i++) {
+      enqueue(&tasks[i]);
+    }
+  }
+
   //! Requests the thread to stop. The threads will stop after executing all the submitted work.
   void request_stop() noexcept;
   //! Waits for all the threads to complete; should be called after `request_stop()`.
@@ -43,15 +55,15 @@ public:
 
 private:
   //! Data corresponding to a thread. Contains the queue of tasks corresponding to this thread, and
-  //! the required syncrhonization.
+  //! the required synchronization.
   class thread_data {
   public:
     //! Requests the thread operating on this data to stop.
     void request_stop() noexcept;
 
     /**
-     * @brief Try pusing a task into the queue.
-     * @param task The task that neds to be executed.
+     * @brief Try pushing a task into the queue.
+     * @param task The task that needs to be executed.
      * @return True if succeeded to enqueue the task.
      *
      * If there is another thread that has the acquired the lock (for pushing or popping tasks),

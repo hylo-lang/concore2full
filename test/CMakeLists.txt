@@ -5,6 +5,7 @@ set(sourceFiles
 "test_stack_allocator.cpp"
 "test_callcc.cpp"
 "test_spawn.cpp"
+"test_bulk_spawn.cpp"
 "test_thread_pool.cpp"
 "test_sync_execute.cpp"
 "example_conc_sort.cpp"
@@ -12,6 +13,7 @@ set(sourceFiles
 "sketch_cancellation.cpp"
 "tests_c.cpp"
 "c/test_spawn.c"
+"c/test_bulk_spawn.c"
 )
 
 find_package(Catch2 REQUIRED CONFIG)
