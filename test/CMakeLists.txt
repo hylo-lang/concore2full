@@ -5,6 +5,7 @@ set(sourceFiles
 "test_stack_allocator.cpp"
 "test_callcc.cpp"
 "test_spawn.cpp"
+"test_bulk_spawn.cpp"
 "test_thread_pool.cpp"
 "test_sync_execute.cpp"
 "example_conc_sort.cpp"
