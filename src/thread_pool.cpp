@@ -10,6 +10,7 @@ using namespace std::chrono_literals;
 
 namespace concore2full {
 
+#ifndef NDEBUG
 namespace {
 //! Checks that the list represented by `head` is consistent.
 bool check_list(concore2full_task* head, void* data) {
@@ -23,6 +24,7 @@ bool check_list(concore2full_task* head, void* data) {
   return true;
 }
 } // namespace
+#endif
 
 thread_pool::thread_pool() : thread_pool(std::thread::hardware_concurrency()) {}
 

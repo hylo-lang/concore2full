@@ -133,7 +133,7 @@ private:
     //! Conditional variable used to wait on when there is no task to be executed.
     std::condition_variable cv_;
     //! The stack of tasks that need to be executed.
-    concore2full_task* tasks_stack_;
+    concore2full_task* tasks_stack_{nullptr};
     //! Indicates when the we should not block while waiting for new task, ending the current worker
     //! thread.
     bool should_stop_{false};
