@@ -76,10 +76,20 @@ extern "C" void concore2full_spawn(struct concore2full_spawn_frame* frame,
 }
 
 extern "C" void concore2full_await(struct concore2full_spawn_frame* frame) {
-  // Ensure that we started the async work (and the continuation is set).
-  concore2full::detail::atomic_wait(frame->sync_state_,
-                                    [](int v) { return v >= ss_async_started; });
-  // Now, the possible states are: ss_async_started, ss_async_finished
+  // If the async work hasn't started yet, check if we can execute it here directly.
+  if (atomic_load_explicit(&frame->sync_state_, std::memory_order_acquire) == ss_initial_state) {
+    if (concore2full::global_thread_pool().extract_task(&frame->task_)) {
+      concore2full::profiling::zone z{CURRENT_LOCATION_N("execute inplace")};
+      // We've extracted the task from the queue; execute it here directly.
+      frame->user_function_(frame);
+      // We are done.
+      return;
+    }
+    // If we are here, the task was already started by the thread pool.
+    // Wait for it to store the continuation object.
+    concore2full::detail::atomic_wait(frame->sync_state_,
+                                      [](int v) { return v >= ss_async_started; });
+  }
 
   int expected{ss_async_started};
   if (atomic_compare_exchange_strong(&frame->sync_state_, &expected, ss_main_finishing)) {

@@ -18,6 +18,10 @@ struct concore2full_task {
 
   //! Pointer to the next element in the list of task; implementation details.
   struct concore2full_task* next_;
+  //! Pointer to the `next_` field of the previous element in the list of tasks; implementation details.
+  struct concore2full_task** prev_link_;
+  //! The worker data for the task; implementation details.
+  void* worker_data_;
 };
 
 #ifdef __cplusplus

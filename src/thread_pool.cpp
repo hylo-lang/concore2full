@@ -10,6 +10,22 @@ using namespace std::chrono_literals;
 
 namespace concore2full {
 
+#ifndef NDEBUG
+namespace {
+//! Checks that the list represented by `head` is consistent.
+bool check_list(concore2full_task* head, void* data) {
+  concore2full_task* cur = head;
+  while (cur) {
+    assert(cur->prev_link_);
+    assert(*cur->prev_link_ == cur);
+    assert(cur->worker_data_ == data);
+    cur = cur->next_;
+  }
+  return true;
+}
+} // namespace
+#endif
+
 thread_pool::thread_pool() : thread_pool(std::thread::hardware_concurrency()) {}
 
 thread_pool::thread_pool(int thread_count) : work_data_(thread_count) {
@@ -29,7 +45,12 @@ thread_pool::~thread_pool() {
 }
 
 void thread_pool::enqueue(concore2full_task* task) noexcept {
+  profiling::zone zone{CURRENT_LOCATION()};
+  zone.set_param("task", reinterpret_cast<uint64_t>(task));
+  zone.add_flow(reinterpret_cast<uint64_t>(task));
+
   task->next_ = nullptr;
+  task->prev_link_ = nullptr;
 
   // Note: using uint32_t, as we need to safely wrap around.
   uint32_t thread_count = threads_.size();
@@ -45,6 +66,14 @@ void thread_pool::enqueue(concore2full_task* task) noexcept {
   // If that didn't work, just force-push to the queue of the selected worker thread.
   uint32_t current_index = index % thread_count;
   work_data_[current_index].push(task);
+}
+
+bool thread_pool::extract_task(concore2full_task* task) noexcept {
+  profiling::zone zone{CURRENT_LOCATION()};
+  zone.set_param("task", reinterpret_cast<uint64_t>(task));
+  zone.add_flow_terminate(reinterpret_cast<uint64_t>(task));
+  auto d = static_cast<thread_data*>(task->worker_data_);
+  return d ? d->extract_task(task) : false;
 }
 
 void thread_pool::request_stop() noexcept {
@@ -71,40 +100,85 @@ bool thread_pool::thread_data::try_push(concore2full_task* task) noexcept {
   if (!lock)
     return false;
 
-  // Add the task at the back of the queue.
-  bool was_empty = tasks_.empty();
-  tasks_.push_back(task);
-  // Wake up the worker thread if this is the only task in the queue.
-  if (was_empty)
-    cv_.notify_one();
+  push_unprotected(task);
   return true;
 }
 void thread_pool::thread_data::push(concore2full_task* task) noexcept {
   // Add the task at the back of the queue.
   std::lock_guard lock{bottleneck_};
-  bool was_empty = tasks_.empty();
-  tasks_.push_back(task);
-  // Wake up the worker thread if this is the only task in the queue.
-  if (was_empty)
-    cv_.notify_one();
+  push_unprotected(task);
 }
 concore2full_task* thread_pool::thread_data::try_pop() noexcept {
   std::unique_lock lock{bottleneck_, std::try_to_lock};
-  if (!lock || tasks_.empty())
+  if (!lock || !tasks_stack_)
     return nullptr;
-  return tasks_.pop_front();
+  return pop_unprotected();
 }
 concore2full_task* thread_pool::thread_data::pop() noexcept {
   std::unique_lock lock{bottleneck_};
-  while (tasks_.empty()) {
+  while (!tasks_stack_) {
     if (should_stop_)
       return nullptr;
     this_thread::inversion_checkpoint();
     cv_.wait(lock);
   }
-  return tasks_.pop_front();
+  return pop_unprotected();
 }
+bool thread_pool::thread_data::extract_task(concore2full_task* task) noexcept {
+  std::unique_lock lock{bottleneck_};
+  assert(check_list(tasks_stack_, this));
+  assert(!tasks_stack_ || tasks_stack_->prev_link_ == &tasks_stack_);
+  if (task->worker_data_) {
+    assert(task->worker_data_ == this);
+    assert(task->prev_link_);
+    assert(*task->prev_link_ == task);
+
+    *task->prev_link_ = task->next_;
+    if (task->next_)
+      task->next_->prev_link_ = task->prev_link_;
+    task->worker_data_ = nullptr;
+    task->prev_link_ = nullptr;
+    assert(tasks_stack_ != task);
+    assert(!tasks_stack_ || tasks_stack_->prev_link_ == &tasks_stack_);
+    assert(check_list(tasks_stack_, this));
+    return true;
+  } else {
+    return false;
+  }
+}
+
 void thread_pool::thread_data::wakeup() noexcept { cv_.notify_one(); }
+
+void thread_pool::thread_data::push_unprotected(concore2full_task* task) noexcept {
+  // Add the task in the front of the list.
+  assert(check_list(tasks_stack_, this));
+  bool was_empty = tasks_stack_ == nullptr;
+  task->worker_data_ = this;
+  task->next_ = tasks_stack_;
+  if (tasks_stack_)
+    tasks_stack_->prev_link_ = &task->next_;
+  task->prev_link_ = &tasks_stack_;
+  tasks_stack_ = task;
+  assert(check_list(tasks_stack_, this));
+  // Wake up the worker thread if this is the only task in the queue.
+  if (was_empty)
+    cv_.notify_one();
+}
+
+concore2full_task* thread_pool::thread_data::pop_unprotected() noexcept {
+  assert(check_list(tasks_stack_, this));
+  if (tasks_stack_) {
+    concore2full_task* res = tasks_stack_;
+    tasks_stack_ = tasks_stack_->next_;
+    if (tasks_stack_)
+      tasks_stack_->prev_link_ = &tasks_stack_;
+    res->prev_link_ = nullptr;
+    res->worker_data_ = nullptr;
+    assert(check_list(tasks_stack_, this));
+    return res;
+  }
+  return nullptr;
+}
 
 std::string thread_name(int index) { return "worker-" + std::to_string(index); }
 
@@ -153,6 +227,8 @@ void thread_pool::thread_main(int index) noexcept {
 
     assert(to_execute);
     profiling::zone zone2{CURRENT_LOCATION_N("execute")};
+    zone2.set_param("task", reinterpret_cast<uint64_t>(to_execute));
+    zone2.add_flow_terminate(reinterpret_cast<uint64_t>(to_execute));
     to_execute->task_function_(to_execute, current_index);
   }
 
