@@ -6,7 +6,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
-#include <iostream>
 #include <inttypes.h>
 
 using namespace std::chrono_literals;
