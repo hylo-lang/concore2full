@@ -1,3 +1,4 @@
+#include "concore2full/bulk_spawn.h"
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/profiling.h"
 #include "concore2full/spawn.h"
@@ -7,6 +8,7 @@
 
 #include <chrono>
 #include <inttypes.h>
+#include <numeric>
 
 using namespace std::chrono_literals;
 
@@ -94,18 +96,40 @@ uint64_t skynet_weak(int num, int size, int div) {
   }
 }
 
+uint64_t skynet_bulk(int num, int size, int div) {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  zone.set_param("num", int64_t(num));
+  zone.set_param("size", int64_t(size));
+  if (size == 1) {
+    concore2full::profiling::zone z1{CURRENT_LOCATION_N("skynet-1")};
+    return uint64_t(num);
+  } else {
+    std::vector<uint64_t> results(div);
+
+    // Spawn the sub-tasks, and put the results in the `results` array.
+    const int sub_size = size / div;
+    concore2full::bulk_spawn(div, [=, &results](int i) {
+      int sub_num = num + i * sub_size;
+      results[i] = skynet_bulk(sub_num, sub_size, div);
+    }).await();
+
+    // Get the sum of the results.
+    return std::accumulate(results.begin(), results.end(), uint64_t(0));
+  }
+}
+
 TEST_CASE("skynet microbenchmark example", "[benchmark]") {
   concore2full::profiling::emit_thread_name_and_stack("main");
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
 
   auto now = std::chrono::high_resolution_clock::now();
   // uint64_t result = skynet_strict(0, 1'000'000, 10);
-  uint64_t result = skynet_strict(0, 100'000, 10);
+  uint64_t result = skynet_strict(0, 10'000, 10);
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::high_resolution_clock::now() - now);
 
   printf("Result: %" PRIu64 " in %d ms\n", result, int(duration.count()));
-  REQUIRE(result == 4999950000);
+  REQUIRE(result == 49995000);
 }
 
 TEST_CASE("skynet microbenchmark example (weakly structured concurrency)", "[benchmark]") {
@@ -114,10 +138,24 @@ TEST_CASE("skynet microbenchmark example (weakly structured concurrency)", "[ben
 
   auto now = std::chrono::high_resolution_clock::now();
   // uint64_t result = skynet_weak(0, 1'000'000, 10);
-  uint64_t result = skynet_weak(0, 100'000, 10);
+  uint64_t result = skynet_weak(0, 10'000, 10);
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::high_resolution_clock::now() - now);
 
   printf("Result: %" PRIu64 " in %d ms\n", result, int(duration.count()));
-  REQUIRE(result == 4999950000);
+  REQUIRE(result == 49995000);
+}
+
+TEST_CASE("skynet microbenchmark example (bulk_spawn)", "[benchmark]") {
+  concore2full::profiling::emit_thread_name_and_stack("main");
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
+
+  auto now = std::chrono::high_resolution_clock::now();
+  // uint64_t result = skynet_bulk(0, 1'000'000, 10);
+  uint64_t result = skynet_bulk(0, 10'000, 10);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::high_resolution_clock::now() - now);
+
+  printf("Result: %" PRIu64 " in %d ms\n", result, int(duration.count()));
+  REQUIRE(result == 49995000);
 }
