@@ -16,6 +16,10 @@ struct concore2full_bulk_spawn_task : concore2full_task {
 
 namespace {
 
+using concore2full::detail::as_value;
+
+continuation_t tombstone_continuation() { return (continuation_t)0x1; }
+
 int store_current_continuation(concore2full_bulk_spawn_frame* frame, continuation_t c) {
   // Occupy the next thread slot.
   int cont_index = atomic_fetch_add(&frame->started_tasks_, 1);
@@ -27,17 +31,22 @@ int store_current_continuation(concore2full_bulk_spawn_frame* frame, continuatio
 }
 
 concore2full_thread_suspension_sync* extract_continuation(concore2full_bulk_spawn_frame* frame) {
-  // Obtain the index of the slot from which we need to extract.
-  int index = atomic_fetch_add(&frame->completed_tasks_, 1);
-  assert(index <= frame->count_);
+  while (true) {
+    // Obtain the index of the slot from which we need to extract.
+    int index = atomic_fetch_add(&frame->completed_tasks_, 1);
+    assert(index <= frame->count_);
 
-  auto* r = &frame->threads_[index];
+    auto* r = &frame->threads_[index];
 
-  // Ensure that the thread data is properly initialized.
-  // I.e., we didn't reach here before the other thread finished storing the data.
-  concore2full::detail::atomic_wait(r->continuation_, [](auto c) { return c != nullptr; });
+    // Ensure that the thread data is properly initialized.
+    // I.e., we didn't reach here before the other thread finished storing the data.
+    concore2full::detail::atomic_wait(r->continuation_, [](auto c) { return c != nullptr; });
 
-  return r;
+    // If we've found a valid continuation, return it.
+    if (r->continuation_ != tombstone_continuation())
+      return r;
+    // otherwise, pick the next one.
+  }
 }
 
 void finalize_thread_of_execution(concore2full_bulk_spawn_frame* frame, bool is_last_thread) {
@@ -125,10 +134,28 @@ void concore2full_bulk_spawn2(struct concore2full_bulk_spawn_frame* frame, int c
 }
 
 void concore2full_bulk_await(struct concore2full_bulk_spawn_frame* frame) {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
+
   // If all the workers have finished, we can return directly.
   uint64_t completed = atomic_load_explicit(&frame->completed_tasks_, std::memory_order_acquire);
   if (completed == uint64_t(frame->count_))
     return;
+
+  // Try to execute as much as possible inplace.
+  for (uint32_t i = 0; i < frame->count_; i++) {
+    if (concore2full::global_thread_pool().extract_task(&frame->tasks_[i])) {
+      // Occupy one slot in the completed tasks.
+      store_current_continuation(frame, tombstone_continuation());
+
+      {
+        concore2full::profiling::zone z{CURRENT_LOCATION_N("execute inplace")};
+        // Actually execute the given work.
+        frame->user_function_(frame, i);
+      }
+
+      finalize_thread_of_execution(frame, false);
+    }
+  }
 
   // We may need to switching threads, so we need a continuation.
   auto c = callcc([frame](continuation_t await_cc) -> continuation_t {
