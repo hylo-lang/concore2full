@@ -142,7 +142,7 @@ void concore2full_bulk_await(struct concore2full_bulk_spawn_frame* frame) {
     return;
 
   // Try to execute as much as possible inplace.
-  for (int i = 0; i < frame->count_; i++) {
+  for (uint32_t i = 0; i < frame->count_; i++) {
     if (concore2full::global_thread_pool().extract_task(&frame->tasks_[i])) {
       // Occupy one slot in the completed tasks.
       store_current_continuation(frame, tombstone_continuation());
