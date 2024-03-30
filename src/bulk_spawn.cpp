@@ -95,14 +95,14 @@ void execute_bulk_spawn_task(concore2full_task* t, int) noexcept {
 
 } // namespace
 
-extern "C" size_t concore2full_frame_size(int count) {
+extern "C" uint64_t concore2full_frame_size(int32_t count) {
   return sizeof(concore2full_bulk_spawn_frame)                       //
          + count * sizeof(concore2full_bulk_spawn_task)              //
          + (count + 1) * sizeof(concore2full_thread_suspension_sync) //
       ;
 }
 
-void concore2full_bulk_spawn(struct concore2full_bulk_spawn_frame* frame, int count,
+void concore2full_bulk_spawn(struct concore2full_bulk_spawn_frame* frame, int32_t count,
                              concore2full_bulk_spawn_function_t f) {
   size_t size_struct = sizeof(concore2full_bulk_spawn_frame);
   size_t size_tasks = count * sizeof(concore2full_bulk_spawn_task);
@@ -128,9 +128,10 @@ void concore2full_bulk_spawn(struct concore2full_bulk_spawn_frame* frame, int co
 
   concore2full::global_thread_pool().enqueue_bulk(frame->tasks_, count);
 }
-void concore2full_bulk_spawn2(struct concore2full_bulk_spawn_frame* frame, int count,
+
+void concore2full_bulk_spawn2(struct concore2full_bulk_spawn_frame* frame, int32_t* count,
                               concore2full_bulk_spawn_function_t* f) {
-  concore2full_bulk_spawn(frame, count, *f);
+  concore2full_bulk_spawn(frame, *count, *f);
 }
 
 void concore2full_bulk_await(struct concore2full_bulk_spawn_frame* frame) {

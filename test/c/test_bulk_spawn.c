@@ -16,10 +16,10 @@ static struct spawn_frame* alloc_frame(int count) {
   return frame;
 }
 
-static void spawn_function(struct concore2full_bulk_spawn_frame* base_frame, int index) {
+static void spawn_function(struct concore2full_bulk_spawn_frame* base_frame, uint64_t index) {
   char* p = (char*)base_frame;
   struct spawn_frame* frame = (struct spawn_frame*)(p - offsetof(struct spawn_frame, base_));
-  printf("Hello, bulk of concurrent world, from worker %d!\n", index);
+  printf("Hello, bulk of concurrent world, from worker %d!\n", (int)index);
   frame->result_[index] = 13 + frame->captures_;
 }
 
