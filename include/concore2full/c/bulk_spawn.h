@@ -16,7 +16,7 @@ extern "C" {
 struct concore2full_bulk_spawn_frame;
 
 //! Type of a user function to be executed on `bulk_spawn`.
-typedef void (*concore2full_bulk_spawn_function_t)(struct concore2full_bulk_spawn_frame*, int);
+typedef void (*concore2full_bulk_spawn_function_t)(struct concore2full_bulk_spawn_frame*, uint64_t);
 
 struct concore2full_bulk_spawn_task;
 
@@ -50,12 +50,12 @@ struct concore2full_bulk_spawn_frame {
 
 //! Returns the full size of the `concore2full_bulk_spawn_frame` structure, given the number of work
 //! items.
-size_t concore2full_frame_size(int count);
+uint64_t concore2full_frame_size(int32_t count);
 
 //! Asynchronously executes `f`, using the given `frame` to hold the state.
-void concore2full_bulk_spawn(struct concore2full_bulk_spawn_frame* frame, int count,
+void concore2full_bulk_spawn(struct concore2full_bulk_spawn_frame* frame, int32_t count,
                              concore2full_bulk_spawn_function_t f);
-void concore2full_bulk_spawn2(struct concore2full_bulk_spawn_frame* frame, int count,
+void concore2full_bulk_spawn2(struct concore2full_bulk_spawn_frame* frame, int32_t* count,
                               concore2full_bulk_spawn_function_t* f);
 
 //! Await the async computations represented by `frame` to be finished.

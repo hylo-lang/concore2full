@@ -36,7 +36,7 @@ template <typename Fn> struct bulk_spawn_frame {
   bulk_spawn_frame(const bulk_spawn_frame&) = delete;
 
   //! The function called by the bulk spawn API to execute the work.
-  static void to_execute(concore2full_bulk_spawn_frame* frame, int index) noexcept {
+  static void to_execute(concore2full_bulk_spawn_frame* frame, uint64_t index) noexcept {
     char* p = reinterpret_cast<char*>(frame);
     bulk_spawn_frame* self =
         reinterpret_cast<bulk_spawn_frame*>(p - offsetOf(&bulk_spawn_frame::base_frame_));
