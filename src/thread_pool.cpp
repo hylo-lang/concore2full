@@ -26,7 +26,21 @@ bool check_list(concore2full_task* head, void* data) {
 } // namespace
 #endif
 
-thread_pool::thread_pool() : thread_pool(std::thread::hardware_concurrency()) {}
+namespace {
+//! Return the desired level of conurrency.
+size_t concurrency() {
+  // Check if we have a maximum concurrency set as environment variable.
+  const char* env_var = std::getenv("CONCORE_MAX_CONCURRENCY");
+  if (env_var) {
+    return std::stoul(env_var);
+  }
+
+  // Otherwise, return the hardware concurrency.
+  return std::thread::hardware_concurrency();
+}
+} // namespace
+
+thread_pool::thread_pool() : thread_pool(concurrency()) {}
 
 thread_pool::thread_pool(int thread_count) : work_data_(thread_count) {
   threads_.reserve(thread_count);
