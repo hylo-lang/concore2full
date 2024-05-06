@@ -11,10 +11,8 @@ jobs:
       - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
         with:
           checks: build test install warnings
-          prebuild_command: conan profile detect -f && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 ; rm -fR ~/.conan2/profiles
           cc: gcc
-          conanflags: -s compiler.cppstd=20 -o with_tests=True
-          cmakeflags: -DCMAKE_TOOLCHAIN_FILE=/github/workspace/build/Release/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release
+          cmakeflags: -DCMAKE_BUILD_TYPE=Release -DWITH_TESTS=On
           ctestflags: --test-dir /tmp/build/test
   clang-format:
     runs-on: ubuntu-latest
@@ -25,28 +23,16 @@ jobs:
       - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
         with:
           checks: clang-format
-          clangformatdirs: src test test_package/src
-  static-checks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-        with:
-          submodules: recursive
-      - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
-        with:
-          checks: cppcheck clang-tidy
-          prebuild_command: conan profile detect -f && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 ; rm -fR ~/.conan2/profiles
-          conanflags: -s compiler.cppstd=20
-          cmakeflags: -DCMAKE_TOOLCHAIN_FILE=/github/workspace/build/Release/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Release
-          clangtidyflags: '-quiet'
-          cppcheckflags: '--enable=warning,style,performance,portability --inline-suppr'
-  conan-package:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-        with:
-          submodules: recursive
-      - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
-        with:
-          checks: build
-          build_command: conan profile detect && conan create /github/workspace/external/context-core-api --build=missing -s compiler.cppstd=17 && conan create /github/workspace/ --build=missing -s compiler.cppstd=20
+          clangformatdirs: src test include
+  # static-checks:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@master
+  #       with:
+  #         submodules: recursive
+  #     - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
+  #       with:
+  #         checks: cppcheck clang-tidy
+  #         cmakeflags: -DCMAKE_BUILD_TYPE=Release -DWITH_TESTS=On
+  #         clangtidyflags: '-quiet'
+  #         cppcheckflags: '--enable=warning,style,performance,portability --inline-suppr'

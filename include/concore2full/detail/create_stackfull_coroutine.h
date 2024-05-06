@@ -37,7 +37,8 @@ inline auto allocate_stack(stack::stack_allocator auto&& allocator, context_func
 template <typename C>
 inline detail::transfer_t execution_context_exit(detail::transfer_t t) noexcept {
   auto control = reinterpret_cast<C*>(t.data);
-  profiling::zone_instant{CURRENT_LOCATION()}.add_flow_terminate(reinterpret_cast<uint64_t>(control));
+  profiling::zone_instant{CURRENT_LOCATION()}.add_flow_terminate(
+      reinterpret_cast<uint64_t>(control));
   destroy(control);
   return {nullptr, nullptr};
 }
