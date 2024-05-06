@@ -14,9 +14,6 @@ SRCFILES="$@"
 BUILDDIR="build/gh-checks/static-checks/"
 mkdir -p "${CURDIR}/../../${BUILDDIR}"
 
-# Remove any cached version of conan profiles
-rm -fR ${CURDIR}/../../build/gh-checks/conan-cache/profiles
-
 # Run docker with action-cxx-toolkit to check our code
 docker run ${DOCKER_RUN_PARAMS} \
     -e INPUT_CHECKS='cppcheck clang-tidy' \
