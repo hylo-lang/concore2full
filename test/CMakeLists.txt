@@ -17,7 +17,15 @@ set(sourceFiles
 "c/test_bulk_spawn.c"
 )
 
-find_package(Catch2 REQUIRED CONFIG)
+Include(FetchContent)
+
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.4.0 # or a later release
+)
+
+FetchContent_MakeAvailable(Catch2)
 
 # Add the tests executable
 add_executable(test.concore2full ${sourceFiles})
@@ -29,5 +37,4 @@ set_property(TARGET test.concore2full PROPERTY COMPILE_WARNING_AS_ERROR ON)
 
 # Discover the Catch2 test built by the application
 include(CTest)
-include(Catch)
 catch_discover_tests(test.concore2full PROPERTIES TIMEOUT 30)

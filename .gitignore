@@ -12,3 +12,6 @@ conanrun.sh
 conanrunenv-*
 deactivate_conanbuild.sh
 deactivate_conanrun.sh
+
+# Profiling captures
+*.perfetto-trace
