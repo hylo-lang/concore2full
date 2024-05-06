@@ -31,4 +31,4 @@ template <typename T, typename F> inline void atomic_wait(CONCORE2FULL_ATOMIC(T)
   });
 }
 
-}
+} // namespace concore2full::detail
