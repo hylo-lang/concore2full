@@ -9,7 +9,7 @@ ROOTDIR="${_CURDIR}/../../"
 IMAGENAME=lucteo/action-cxx-toolkit.v9.main:latest
 
 # Export the general params that need to be added do 'docker run'
-DOCKER_RUN_PARAMS="--rm -it --workdir /github/workspace -v ${ROOTDIR}:/github/workspace  -v ${ROOTDIR}/build/gh-checks/conan-cache:/root/.conan2"
+DOCKER_RUN_PARAMS="--rm -it --workdir /github/workspace -v ${ROOTDIR}:/github/workspace"
 
 RED="\033[0;31m"
 GREEN="\033[0;32m"
