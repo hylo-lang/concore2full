@@ -1,43 +1,14 @@
 #pragma once
 
 #include "concore2full/c/spawn.h"
+#include "concore2full/detail/frame_holder.h"
 #include "concore2full/detail/frame_with_value.h"
 #include "concore2full/detail/spawn_frame_base.h"
 #include "concore2full/detail/value_holder.h"
 
-#include <memory>
-#include <type_traits>
+#include <utility>
 
 namespace concore2full {
-
-namespace detail {
-
-//! Holder for a spawn frame, that can be either a shared_ptr or a direct object.
-template <typename Fn, bool Escaping = false> struct frame_holder {
-  using frame_t = frame_with_value<spawn_frame_base, Fn>;
-
-  explicit frame_holder(Fn&& f) : frame_(std::forward<Fn>(f)) {}
-  //! No copy, no move
-  frame_holder(const frame_holder&) = delete;
-
-  frame_t& get() noexcept { return frame_; }
-
-private:
-  frame_t frame_;
-};
-
-template <typename Fn> struct frame_holder<Fn, true> {
-  using frame_t = frame_with_value<spawn_frame_base, Fn>;
-
-  explicit frame_holder(Fn&& f) : frame_(std::make_shared<frame_t>(std::forward<Fn>(f))) {}
-
-  frame_t& get() noexcept { return *frame_.get(); }
-
-private:
-  std::shared_ptr<frame_t> frame_;
-};
-
-} // namespace detail
 
 //! A future object resulting from a `spawn` call.
 //! The `await()` method needs to be called exactly once.
@@ -64,7 +35,7 @@ public:
 
 private:
   //! The frame holding the state of the spawned computation.
-  detail::frame_holder<Fn, Escaping> frame_;
+  detail::frame_holder<detail::frame_with_value<detail::spawn_frame_base, Fn>, Escaping> frame_;
 
   template <typename F> friend auto spawn(F&& f);
   template <typename F> friend auto escaping_spawn(F&& f);
