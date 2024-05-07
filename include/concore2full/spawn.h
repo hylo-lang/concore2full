@@ -6,6 +6,7 @@
 #include "concore2full/detail/spawn_frame_base.h"
 #include "concore2full/future.h"
 
+#include <concepts>
 #include <utility>
 
 namespace concore2full {
@@ -20,14 +21,14 @@ namespace concore2full {
  *
  * The returned state object needs to stay alive for the entire duration of the computation.
  */
-template <typename Fn> inline auto spawn(Fn&& f) {
+template <std::invocable Fn> inline auto spawn(Fn&& f) {
   using frame_holder_t = detail::frame_with_value<detail::spawn_frame_base, Fn>;
   return future<frame_holder_t>{detail::start_spawn_t{}, std::forward<Fn>(f)};
 }
 
 //! Same as `spawn`, but the returned future can be copied and moved.
 //! The caller is responsible for calling `await` exactly once on the returned object.
-template <typename Fn> inline auto escaping_spawn(Fn&& f) {
+template <std::invocable Fn> inline auto escaping_spawn(Fn&& f) {
   using frame_holder_t =
       detail::shared_frame<detail::frame_with_value<detail::spawn_frame_base, Fn>>;
   return future<frame_holder_t>{detail::start_spawn_t{}, std::forward<Fn>(f)};
