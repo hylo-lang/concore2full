@@ -8,6 +8,7 @@ namespace concore2full::detail {
 //! Holder for a spawn frame, that can be either a shared_ptr or a direct object.
 template <typename Frame, bool Escaping = false> struct frame_holder {
   using frame_t = Frame;
+  using result_t = typename frame_t::result_t;
 
   template <typename... Ts>
   explicit frame_holder(Ts&&... args) : frame_(std::forward<Ts>(args)...) {}
@@ -24,6 +25,7 @@ private:
 
 template <typename Frame> struct frame_holder<Frame, true> {
   using frame_t = Frame;
+  using result_t = typename frame_t::result_t;
 
   template <typename... Ts>
   explicit frame_holder(Ts&&... args)

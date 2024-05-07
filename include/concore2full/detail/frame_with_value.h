@@ -15,7 +15,7 @@ struct frame_with_value : FrameBase, value_holder<std::invoke_result_t<Fn>> {
   Fn f_;
 
   using value_holder_t = detail::value_holder<std::invoke_result_t<Fn>>;
-  using res_t = typename value_holder_t::value_t;
+  using result_t = typename value_holder_t::value_t;
 
   explicit frame_with_value(Fn&& f) : f_(std::forward<Fn>(f)) {}
 
@@ -30,7 +30,7 @@ private:
   static void to_execute(typename FrameBase::interface_t* frame) noexcept {
     auto* d = static_cast<frame_with_value*>(FrameBase::from_interface(frame));
 
-    if constexpr (std::is_same_v<res_t, void>) {
+    if constexpr (std::is_same_v<result_t, void>) {
       std::invoke(std::forward<Fn>(d->f_));
     } else {
       static_cast<value_holder_t*>(d)->value() = std::invoke(std::forward<Fn>(d->f_));
