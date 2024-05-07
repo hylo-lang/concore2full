@@ -1,11 +1,8 @@
 #pragma once
 
 #include "concore2full/c/spawn.h"
-#include "concore2full/c/task.h"
-#include "concore2full/detail/callcc.h"
-#include "concore2full/detail/value_holder.h"
 #include "concore2full/detail/spawn_frame_base.h"
-#include "concore2full/this_thread.h"
+#include "concore2full/detail/value_holder.h"
 
 #include <memory>
 #include <type_traits>
