@@ -9,9 +9,11 @@
 
 namespace concore2full::detail {
 
-//! Holds a base spawn frame and the result produced by the spawn function.
+//! Holds a base spawn frame, the functor and the result produced by the spawn function.
+//! Knows how to spawn the entire computation and how to await for the result.
 template <typename FrameBase, typename Fn>
 struct frame_with_value : FrameBase, value_holder<std::invoke_result_t<Fn>> {
+  //! The functor that encapsulates the computation.
   Fn f_;
 
   using value_holder_t = detail::value_holder<std::invoke_result_t<Fn>>;
@@ -19,14 +21,19 @@ struct frame_with_value : FrameBase, value_holder<std::invoke_result_t<Fn>> {
 
   explicit frame_with_value(Fn&& f) : f_(std::forward<Fn>(f)) {}
 
-  frame_with_value(frame_with_value&& other) : f_(std::move(other.f_)) {}
+  frame_with_value(frame_with_value&& other) = default;
 
-  void spawn() {
-    // Also initialize the base frame.
-    FrameBase::spawn(&to_execute);
+  //! Spawn the computation, that will execute `f_`.
+  void spawn() { FrameBase::spawn(&to_execute); }
+
+  //! Await the result of the computation.
+  result_t await() {
+    FrameBase::await();
+    return value_holder_t::value();
   }
 
 private:
+  //! Called by the backend implementation to execute the computation.
   static void to_execute(typename FrameBase::interface_t* frame) noexcept {
     auto* d = static_cast<frame_with_value*>(FrameBase::from_interface(frame));
 

@@ -21,7 +21,7 @@ public:
   //! We rely on the fact that the object will be constructed in its final destination storage.
   template <typename... Ts>
   future(detail::start_spawn_t, Ts&&... ts) : frame_(std::forward<Ts>(ts)...) {
-    frame_.get().spawn();
+    frame_.spawn();
   }
 
   //! The type of the value that can be awaited on..
@@ -38,10 +38,7 @@ public:
    * Note:
    *  - the exit thread may be different from the thread that called this method.
    */
-  result_t await() {
-    frame_.get().await();
-    return frame_.get().value();
-  }
+  result_t await() { return frame_.await(); }
 
 private:
   //! The frame holding the state of the spawned computation.
