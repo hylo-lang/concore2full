@@ -13,14 +13,15 @@ namespace concore2full::detail {
 
 //! Basic structure needed to perform a `spawn` operation.
 struct spawn_frame_base {
+
+  using interface_t = concore2full_spawn_frame;
+
   spawn_frame_base() = default;
 
-  static spawn_frame_base* from_interface(concore2full_spawn_frame* src) {
+  static spawn_frame_base* from_interface(interface_t* src) {
     return reinterpret_cast<spawn_frame_base*>(src);
   }
-  concore2full_spawn_frame* to_interface() {
-    return reinterpret_cast<concore2full_spawn_frame*>(this);
-  }
+  interface_t* to_interface() { return reinterpret_cast<interface_t*>(this); }
 
   //! Asynchronously executes `f`.
   void spawn(concore2full_spawn_function_t f);

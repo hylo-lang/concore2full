@@ -1,6 +1,7 @@
 #pragma once
 
 #include "concore2full/c/spawn.h"
+#include "concore2full/detail/frame_with_value.h"
 #include "concore2full/detail/spawn_frame_base.h"
 #include "concore2full/detail/value_holder.h"
 
@@ -11,38 +12,9 @@ namespace concore2full {
 
 namespace detail {
 
-//! Holds core spawn frame, the spawn function and the result of the spawn function.
-template <typename Fn>
-struct full_spawn_frame : spawn_frame_base, value_holder<std::invoke_result_t<Fn>> {
-  Fn f_;
-
-  using value_holder_t = detail::value_holder<std::invoke_result_t<Fn>>;
-  using res_t = typename value_holder_t::value_t;
-
-  explicit full_spawn_frame(Fn&& f) : f_(std::forward<Fn>(f)) {}
-
-  full_spawn_frame(full_spawn_frame&& other) : f_(std::move(other.f_)) {}
-
-  void spawn() {
-    // Also initialize the base frame.
-    spawn_frame_base::spawn(&to_execute);
-  }
-
-private:
-  static void to_execute(concore2full_spawn_frame* frame) noexcept {
-    auto* d = static_cast<detail::full_spawn_frame<Fn>*>(spawn_frame_base::from_interface(frame));
-
-    if constexpr (std::is_same_v<res_t, void>) {
-      std::invoke(std::forward<Fn>(d->f_));
-    } else {
-      static_cast<value_holder_t*>(d)->value() = std::invoke(std::forward<Fn>(d->f_));
-    }
-  }
-};
-
 //! Holder for a spawn frame, that can be either a shared_ptr or a direct object.
 template <typename Fn, bool Escaping = false> struct frame_holder {
-  using frame_t = full_spawn_frame<Fn>;
+  using frame_t = frame_with_value<spawn_frame_base, Fn>;
 
   explicit frame_holder(Fn&& f) : frame_(std::forward<Fn>(f)) {}
   //! No copy, no move
@@ -55,7 +27,7 @@ private:
 };
 
 template <typename Fn> struct frame_holder<Fn, true> {
-  using frame_t = full_spawn_frame<Fn>;
+  using frame_t = frame_with_value<spawn_frame_base, Fn>;
 
   explicit frame_holder(Fn&& f) : frame_(std::make_shared<frame_t>(std::forward<Fn>(f))) {}
 
@@ -74,7 +46,7 @@ public:
   ~spawn_future() = default;
 
   //! The type returned by the spawned computation.
-  using res_t = typename detail::full_spawn_frame<Fn>::res_t;
+  using res_t = typename detail::frame_with_value<detail::spawn_frame_base, Fn>::res_t;
 
   /**
    * @brief Await the result of the computation.
