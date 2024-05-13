@@ -8,8 +8,9 @@ find_package(Threads REQUIRED)
 set(Sources
 src/profiling.cpp
 src/spawn.cpp
-src/spawn_frame_base.cpp
 src/bulk_spawn.cpp
+src/spawn_frame_base.cpp
+src/bulk_spawn_frame_base.cpp
 src/this_thread.cpp
 src/thread_info.cpp
 src/thread_pool.cpp
