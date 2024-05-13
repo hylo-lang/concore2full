@@ -1,7 +1,8 @@
-#include "concore2full/c/bulk_spawn.h"
+#include "concore2full/c/spawn.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 struct spawn_frame {
   int result_[10];

@@ -1,4 +1,4 @@
-#include "concore2full/bulk_spawn.h"
+#include "concore2full/spawn.h"
 
 #include <catch2/catch_test_macros.hpp>
 

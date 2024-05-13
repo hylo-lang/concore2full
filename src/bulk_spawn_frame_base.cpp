@@ -1,5 +1,5 @@
 #include "concore2full/detail/bulk_spawn_frame_base.h"
-#include "concore2full/c/bulk_spawn.h"
+#include "concore2full/c/spawn.h"
 #include "concore2full/detail/atomic_wait.h"
 #include "concore2full/detail/callcc.h"
 #include "concore2full/global_thread_pool.h"

@@ -1,7 +1,9 @@
 #pragma once
 
+#include "concore2full/c/atomic_wrapper.h"
 #include "concore2full/c/spawn.h"
 #include "concore2full/c/task.h"
+#include "concore2full/c/thread_suspension.h"
 #include "concore2full/detail/callcc.h"
 #include "concore2full/detail/value_holder.h"
 #include "concore2full/this_thread.h"

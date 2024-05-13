@@ -1,4 +1,3 @@
-#include "concore2full/bulk_spawn.h"
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/profiling.h"
 #include "concore2full/spawn.h"
