@@ -56,7 +56,7 @@ public:
 
   //! The data needed to interact with each thread of execution; at position `_count + 1` we store
   //! the information about the thread doing the await.
-  concore2full_thread_suspension_sync* threads_;
+  thread_suspension* threads_;
 
   // More data will follow here, depending on the number of work items.
 
@@ -64,7 +64,7 @@ private:
   //! Called by the spawned tasks to store the continuation back to the worker pool.
   int store_worker_continuation(continuation_t c);
   //! Extract a continuation stored by a worker thread.
-  concore2full_thread_suspension_sync* extract_continuation();
+  thread_suspension* extract_continuation();
   //! Called when a a thread finishes work and wants to exit the spawn scope.
   void finalize_thread_of_execution(bool is_last_thread);
   //! The task function that executes the async work.

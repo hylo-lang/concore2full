@@ -39,10 +39,10 @@ private:
   CONCORE2FULL_ATOMIC(int) sync_state_;
 
   //! The suspension point of the originator of the spawn.
-  struct concore2full_thread_suspension originator_;
+  thread_suspension originator_;
 
   //! The suspension point of the thread that is performing the spawned work.
-  struct concore2full_thread_suspension secondary_thread_;
+  thread_suspension secondary_thread_;
 
   //! The user function to be called to execute the async work.
   concore2full_spawn_function_t user_function_;

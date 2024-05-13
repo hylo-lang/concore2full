@@ -45,13 +45,9 @@ struct thread_info {
   //! The data used for switching control flow with other threads.
   thread_switch_control switch_control_;
   //! The thread that is originates the switch.
-  struct concore2full_thread_suspension originator_ {
-    nullptr, nullptr
-  };
+  thread_suspension originator_{};
   //! The target thread for the switch.
-  struct concore2full_thread_suspension target_ {
-    nullptr, nullptr
-  };
+  thread_suspension target_{};
 };
 
 //! Get the data associated with the current thread.

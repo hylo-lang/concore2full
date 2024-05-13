@@ -31,10 +31,6 @@ void spawn_frame_base::spawn(concore2full_spawn_function_t f) {
   task_.task_function_ = &execute_spawn_task;
   task_.next_ = nullptr;
   sync_state_ = ss_initial_state;
-  originator_.continuation_ = nullptr;
-  originator_.thread_reclaimer_ = nullptr;
-  secondary_thread_.continuation_ = nullptr;
-  secondary_thread_.thread_reclaimer_ = nullptr;
   user_function_ = f;
   concore2full::global_thread_pool().enqueue(&task_);
 }
@@ -57,11 +53,11 @@ void spawn_frame_base::await() {
   if (atomic_compare_exchange_strong(&sync_state_, &expected, ss_main_finishing)) {
     // The main thread is first to finish; we need to start switching threads.
     auto c = callcc([this](continuation_t await_cc) -> continuation_t {
-      concore2full_store_thread_suspension(&originator_, await_cc);
+      originator_.store_relaxed(await_cc);
       // We are done "finishing".
       atomic_store_explicit(&sync_state_, ss_main_finished, std::memory_order_release);
       // Complete the thread switching.
-      return concore2full_use_thread_suspension(&secondary_thread_);
+      return secondary_thread_.use_thread_suspension_relaxed();
     });
     (void)c;
   } else {
@@ -86,7 +82,7 @@ continuation_t spawn_frame_base::on_async_complete(continuation_t c) {
     concore2full::detail::atomic_wait(sync_state_, [](int v) { return v == ss_main_finished; });
 
     // Finish the thread switch.
-    return concore2full_use_thread_suspension(&originator_);
+    return originator_.use_thread_suspension_relaxed();
   }
 }
 
@@ -95,7 +91,7 @@ void spawn_frame_base::execute_spawn_task(concore2full_task* task, int) noexcept
   auto self = (spawn_frame_base*)((char*)task - offsetof(spawn_frame_base, task_));
   (void)callcc([self](continuation_t thread_cont) -> continuation_t {
     // Assume there will be a thread switch and store required objects.
-    concore2full_store_thread_suspension(&self->secondary_thread_, thread_cont);
+    self->secondary_thread_.store_relaxed(thread_cont);
     // Signal the fact that we have started (and the continuation is properly stored).
     atomic_store_explicit(&self->sync_state_, ss_async_started, std::memory_order_release);
     // Actually execute the given work.

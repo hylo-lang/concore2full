@@ -2,6 +2,7 @@
 #include "concore2full/c/spawn.h"
 #include "concore2full/detail/atomic_wait.h"
 #include "concore2full/detail/callcc.h"
+#include "concore2full/detail/thread_suspension.h"
 #include "concore2full/global_thread_pool.h"
 #include "concore2full/profiling.h"
 
@@ -32,11 +33,11 @@ int bulk_spawn_frame_base::store_worker_continuation(continuation_t c) {
   assert(cont_index < count_);
   // Store the thread data to the proper continuation index.
   // This is different from the index of the task, as we may store the continuation out of order.
-  concore2full_store_thread_suspension_release(&threads_[cont_index], c);
+  threads_[cont_index].store_release(c);
   return cont_index;
 }
 
-concore2full_thread_suspension_sync* bulk_spawn_frame_base::extract_continuation() {
+concore2full::detail::thread_suspension* bulk_spawn_frame_base::extract_continuation() {
   while (true) {
     // Obtain the index of the slot from which we need to extract.
     int index = atomic_fetch_add(&completed_tasks_, 1);
@@ -46,10 +47,10 @@ concore2full_thread_suspension_sync* bulk_spawn_frame_base::extract_continuation
 
     // Ensure that the thread data is properly initialized.
     // I.e., we didn't reach here before the other thread finished storing the data.
-    concore2full::detail::atomic_wait(r->continuation_, [](auto c) { return c != nullptr; });
+    concore2full::detail::atomic_wait(r->continuation(), [](auto c) { return c != nullptr; });
 
     // If we've found a valid continuation, return it.
-    if (r->continuation_ != tombstone_continuation())
+    if (r->continuation().load(std::memory_order_relaxed) != tombstone_continuation())
       return r;
     // otherwise, pick the next one.
   }
@@ -79,14 +80,14 @@ void bulk_spawn_frame_base::execute_bulk_spawn_task(concore2full_task* t, int) n
     frame->user_function_(frame->to_interface(), index);
 
     // Extract the next free continuation data and switch to it.
-    concore2full_thread_suspension_sync* cont_data = frame->extract_continuation();
+    thread_suspension* cont_data = frame->extract_continuation();
     if (cont_data == &frame->threads_[cont_index]) {
       // We are finishing on the same thread that started the task.
       frame->finalize_thread_of_execution(false);
       return thread_cont;
     } else {
       // We are finishing on a different thread than the one that started the task.
-      auto r = concore2full_use_thread_suspension_acquire(cont_data);
+      auto r = cont_data->use_thread_suspension_acquire();
       assert(r);
 
       bool last_thread = cont_data == &frame->threads_[frame->count_];
@@ -98,9 +99,9 @@ void bulk_spawn_frame_base::execute_bulk_spawn_task(concore2full_task* t, int) n
 }
 
 uint64_t bulk_spawn_frame_base::frame_size(int32_t count) {
-  return sizeof(bulk_spawn_frame_base)                               //
-         + count * sizeof(concore2full_bulk_spawn_task)              //
-         + (count + 1) * sizeof(concore2full_thread_suspension_sync) //
+  return sizeof(bulk_spawn_frame_base)                  //
+         + count * sizeof(concore2full_bulk_spawn_task) //
+         + (count + 1) * sizeof(thread_suspension)      //
       ;
 }
 
@@ -109,7 +110,7 @@ void bulk_spawn_frame_base::spawn(int32_t count, concore2full_bulk_spawn_functio
   size_t size_tasks = count * sizeof(concore2full_bulk_spawn_task);
   char* p = reinterpret_cast<char*>(this);
   tasks_ = reinterpret_cast<concore2full_bulk_spawn_task*>(p + size_struct);
-  threads_ = reinterpret_cast<concore2full_thread_suspension_sync*>(p + size_struct + size_tasks);
+  threads_ = reinterpret_cast<thread_suspension*>(p + size_struct + size_tasks);
 
   count_ = count;
   started_tasks_ = 0;
@@ -122,8 +123,7 @@ void bulk_spawn_frame_base::spawn(int32_t count, concore2full_bulk_spawn_functio
     tasks_[i].base_ = this;
   }
   for (int i = 0; i < count + 1; i++) {
-    threads_[i].continuation_ = nullptr;
-    threads_[i].thread_reclaimer_ = nullptr;
+    threads_[i] = thread_suspension{};
   }
 
   concore2full::global_thread_pool().enqueue_bulk(tasks_, count);
@@ -160,11 +160,11 @@ void bulk_spawn_frame_base::await() {
     // extracted.
     concore2full::profiling::zone await_zone{CURRENT_LOCATION_N("await")};
     await_zone.set_param("ctx", (uint64_t)await_cc);
-    concore2full_store_thread_suspension_release(&threads_[count_], await_cc);
+    threads_[count_].store_release(await_cc);
 
     // Extract the next free continuation data and switch to it.
     auto c1 = extract_continuation();
-    auto r = concore2full_use_thread_suspension_relaxed(c1);
+    auto r = c1->use_thread_suspension_relaxed();
     assert(r);
 
     bool last_thread = c1 == &threads_[count_];

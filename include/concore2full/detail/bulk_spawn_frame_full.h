@@ -1,7 +1,7 @@
 #pragma once
 
-#include "concore2full/detail/bulk_spawn_frame_base.h"
 #include "concore2full/c/spawn.h"
+#include "concore2full/detail/bulk_spawn_frame_base.h"
 
 #include <functional>
 #include <memory>
