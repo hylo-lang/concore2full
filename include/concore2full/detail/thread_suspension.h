@@ -1,6 +1,5 @@
 #pragma once
 
-#include "atomic_wrapper.h"
 #include "catomic.h"
 
 #include <context_core_api.h>
