@@ -1,4 +1,4 @@
-#include "concore2full/c/thread_suspension.h"
+#include "concore2full/detail/thread_suspension.h"
 #include "concore2full/this_thread.h"
 
 #include <utility>

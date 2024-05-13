@@ -1,6 +1,6 @@
 #pragma once
 
-#include "concore2full/c/thread_suspension.h"
+#include "concore2full/detail/thread_suspension.h"
 
 #include <semaphore>
 

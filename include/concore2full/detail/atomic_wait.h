@@ -1,6 +1,6 @@
 #pragma once
 
-#include "concore2full/c/atomic_wrapper.h"
+#include "concore2full/detail/atomic_wrapper.h"
 
 #include <atomic>
 #include <thread>
