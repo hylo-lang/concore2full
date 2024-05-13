@@ -49,7 +49,7 @@ void spawn_frame_base::await() {
     concore2full::detail::atomic_wait(sync_state_, [](int v) { return v >= ss_async_started; });
   }
 
-  int expected{ss_async_started};
+  uint32_t expected{ss_async_started};
   if (atomic_compare_exchange_strong(&sync_state_, &expected, ss_main_finishing)) {
     // The main thread is first to finish; we need to start switching threads.
     auto c = callcc([this](continuation_t await_cc) -> continuation_t {
@@ -68,7 +68,7 @@ void spawn_frame_base::await() {
 
 //! Called when the async work is finished, to see if we need a thread switch.
 continuation_t spawn_frame_base::on_async_complete(continuation_t c) {
-  int expected{ss_async_started};
+  uint32_t expected{ss_async_started};
   if (atomic_compare_exchange_strong(&sync_state_, &expected, ss_async_finished)) {
     // We are first to arrive at completion.
     // We won't need any thread switch, so we can safely exit.

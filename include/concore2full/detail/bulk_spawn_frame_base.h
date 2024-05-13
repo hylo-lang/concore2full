@@ -41,12 +41,12 @@ public:
   uint32_t count_;
 
   //! The number of started tasks.
-  CONCORE2FULL_ATOMIC(uint32_t) started_tasks_;
+  std::atomic<uint32_t> started_tasks_;
 
   //! The number of completed tasks.
-  CONCORE2FULL_ATOMIC(uint32_t) completed_tasks_;
+  std::atomic<uint32_t> completed_tasks_;
   //! The number of finalized tasks.
-  CONCORE2FULL_ATOMIC(uint32_t) finalized_tasks_;
+  std::atomic<uint32_t> finalized_tasks_;
 
   //! The user function to be called to execute the async work.
   concore2full_bulk_spawn_function_t user_function_;

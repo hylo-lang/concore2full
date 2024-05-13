@@ -36,7 +36,7 @@ private:
   struct concore2full_task task_;
 
   //! The state of the computation, with respect to reaching the await point.
-  CONCORE2FULL_ATOMIC(int) sync_state_;
+  std::atomic<uint32_t> sync_state_;
 
   //! The suspension point of the originator of the spawn.
   thread_suspension originator_;
