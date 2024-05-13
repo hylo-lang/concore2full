@@ -15,6 +15,13 @@ template <typename Fn> struct bulk_spawn_frame_full {
   bulk_spawn_frame_base base_frame_;
   // Note: we occupy more space after `base_frame_` to store the tasks and the thread suspension.
 
+  using result_t = void;
+
+  void spawn() {
+    base_frame_.spawn(base_frame_.count_, &detail::bulk_spawn_frame_full<Fn>::to_execute);
+  }
+  void await() { base_frame_.await(); }
+
   //! Allocates a frame for bulk spawning `count` tasks that call `f`.
   static std::unique_ptr<bulk_spawn_frame_full> allocate(int count, Fn&& f) {
     size_t size_base_frame = bulk_spawn_frame_base::frame_size(count);
@@ -22,8 +29,8 @@ template <typename Fn> struct bulk_spawn_frame_full {
         sizeof(bulk_spawn_frame_full) - sizeof(bulk_spawn_frame_base) + size_base_frame;
     void* p = operator new(total_size);
     try {
-      return std::unique_ptr<bulk_spawn_frame_full>{new (p)
-                                                        bulk_spawn_frame_full(std::forward<Fn>(f))};
+      return std::unique_ptr<bulk_spawn_frame_full>{
+          new (p) bulk_spawn_frame_full(count, std::forward<Fn>(f))};
     } catch (...) {
       operator delete(p);
       throw;
@@ -43,7 +50,9 @@ template <typename Fn> struct bulk_spawn_frame_full {
   }
 
 private:
-  explicit bulk_spawn_frame_full(Fn&& f) : f_(std::forward<Fn>(f)) {}
+  explicit bulk_spawn_frame_full(int count, Fn&& f) : f_(std::forward<Fn>(f)) {
+    base_frame_.count_ = count;
+  }
 };
 
 template <typename T, typename U> constexpr size_t offsetOf(U T::*member) {

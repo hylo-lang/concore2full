@@ -33,7 +33,7 @@ auto create_op(int count, std::atomic<int>& sum) {
   return concore2full::bulk_spawn(count, [&sum](int index) { sum += index; });
 }
 
-template <typename Op> void receiver(Op op) { op.await(); }
+template <typename Op> void receiver(Op&& op) { std::forward<Op>(op).await(); }
 
 TEST_CASE("bulk_spawn result can be returned from functions", "[spawn]") {
   // Arrange
