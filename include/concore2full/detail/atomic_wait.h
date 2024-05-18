@@ -1,7 +1,5 @@
 #pragma once
 
-#include "concore2full/c/atomic_wrapper.h"
-
 #include <atomic>
 #include <thread>
 
@@ -25,10 +23,9 @@ template <typename F> inline void wait_with_backoff(F&& f) {
 }
 
 //! Wait until the given function, applied to the value read from `a`, returns true.
-template <typename T, typename F> inline void atomic_wait(CONCORE2FULL_ATOMIC(T) & a, F&& f) {
-  wait_with_backoff([&a, f = std::forward<F>(f)]() {
-    return f(atomic_load_explicit(&a, std::memory_order_acquire));
-  });
+template <typename T, typename F> inline void atomic_wait(const std::atomic<T>& a, F&& f) {
+  wait_with_backoff(
+      [&a, f = std::forward<F>(f)]() { return f(a.load(std::memory_order_acquire)); });
 }
 
 } // namespace concore2full::detail

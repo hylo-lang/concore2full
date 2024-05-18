@@ -1,5 +1,6 @@
-#include "concore2full/c/bulk_spawn.h"
+#include "concore2full/c/spawn.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 

@@ -49,9 +49,9 @@ void thread_snapshot::perform_switch() {
   (void)detail::callcc([this](detail::continuation_t c) -> detail::continuation_t {
     // Use the switch data from our thread.
     auto& cur_thread = detail::get_current_thread_info();
-    concore2full_store_thread_suspension(&cur_thread.originator_, c);
+    cur_thread.originator_.store_relaxed(c);
     // NOTE: theoretically there is a race condition here: two threads might request to switch back
-    // to the same thred. That is, two control-flows will desire to continue on the same thread at
+    // to the same thread. That is, two control-flows will desire to continue on the same thread at
     // the same time. Because of the structured way we allow concurrency, this shouldn't happen.
     auto old = original_thread_->switch_control_.should_switch_with_.exchange(&cur_thread);
     assert(old == nullptr);
@@ -72,7 +72,7 @@ void thread_snapshot::perform_switch() {
     cur_thread.switch_control_.switch_complete();
 
     // Switch to the continuation provided by our original thread.
-    return concore2full_use_thread_suspension(&cur_thread.target_);
+    return cur_thread.target_.use_thread_suspension_relaxed();
   });
   // We resume here on the original thread.
   assert(original_thread_ == &detail::get_current_thread_info());
