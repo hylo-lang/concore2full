@@ -86,7 +86,7 @@ bool thread_pool::extract_task(concore2full_task* task) noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
   zone.set_param("task", reinterpret_cast<uint64_t>(task));
   zone.add_flow_terminate(reinterpret_cast<uint64_t>(task));
-  auto d = static_cast<thread_data*>(task->worker_data_);
+  auto d = static_cast<work_data*>(task->worker_data_);
   return d ? d->extract_task(task) : false;
 }
 
@@ -103,12 +103,12 @@ void thread_pool::join() noexcept {
   threads_.clear();
 }
 
-void thread_pool::thread_data::request_stop() noexcept {
+void thread_pool::work_data::request_stop() noexcept {
   std::lock_guard lock{bottleneck_};
   should_stop_ = true;
   cv_.notify_one();
 }
-bool thread_pool::thread_data::try_push(concore2full_task* task) noexcept {
+bool thread_pool::work_data::try_push(concore2full_task* task) noexcept {
   // Fail if we can't acquire the lock.
   std::unique_lock lock{bottleneck_, std::try_to_lock};
   if (!lock)
@@ -117,18 +117,18 @@ bool thread_pool::thread_data::try_push(concore2full_task* task) noexcept {
   push_unprotected(task);
   return true;
 }
-void thread_pool::thread_data::push(concore2full_task* task) noexcept {
+void thread_pool::work_data::push(concore2full_task* task) noexcept {
   // Add the task at the back of the queue.
   std::lock_guard lock{bottleneck_};
   push_unprotected(task);
 }
-concore2full_task* thread_pool::thread_data::try_pop() noexcept {
+concore2full_task* thread_pool::work_data::try_pop() noexcept {
   std::unique_lock lock{bottleneck_, std::try_to_lock};
   if (!lock || !tasks_stack_)
     return nullptr;
   return pop_unprotected();
 }
-concore2full_task* thread_pool::thread_data::pop() noexcept {
+concore2full_task* thread_pool::work_data::pop() noexcept {
   std::unique_lock lock{bottleneck_};
   while (!tasks_stack_) {
     if (should_stop_)
@@ -138,7 +138,7 @@ concore2full_task* thread_pool::thread_data::pop() noexcept {
   }
   return pop_unprotected();
 }
-bool thread_pool::thread_data::extract_task(concore2full_task* task) noexcept {
+bool thread_pool::work_data::extract_task(concore2full_task* task) noexcept {
   std::unique_lock lock{bottleneck_};
   assert(check_list(tasks_stack_, this));
   assert(!tasks_stack_ || tasks_stack_->prev_link_ == &tasks_stack_);
@@ -161,9 +161,9 @@ bool thread_pool::thread_data::extract_task(concore2full_task* task) noexcept {
   }
 }
 
-void thread_pool::thread_data::wakeup() noexcept { cv_.notify_one(); }
+void thread_pool::work_data::wakeup() noexcept { cv_.notify_one(); }
 
-void thread_pool::thread_data::push_unprotected(concore2full_task* task) noexcept {
+void thread_pool::work_data::push_unprotected(concore2full_task* task) noexcept {
   // Add the task in the front of the list.
   assert(check_list(tasks_stack_, this));
   bool was_empty = tasks_stack_ == nullptr;
@@ -179,7 +179,7 @@ void thread_pool::thread_data::push_unprotected(concore2full_task* task) noexcep
     cv_.notify_one();
 }
 
-concore2full_task* thread_pool::thread_data::pop_unprotected() noexcept {
+concore2full_task* thread_pool::work_data::pop_unprotected() noexcept {
   assert(check_list(tasks_stack_, this));
   if (tasks_stack_) {
     concore2full_task* res = tasks_stack_;
@@ -203,9 +203,9 @@ void thread_pool::thread_main(int index) noexcept {
 
   // Register a thread_reclaimer object
   struct my_thread_reclaimer : thread_reclaimer {
-    thread_data* cur_thread_data_;
-    explicit my_thread_reclaimer(thread_data* t) : cur_thread_data_(t) {}
-    void start_reclaiming() override { cur_thread_data_->wakeup(); }
+    work_data* cur_work_data_;
+    explicit my_thread_reclaimer(work_data* t) : cur_work_data_(t) {}
+    void start_reclaiming() override { cur_work_data_->wakeup(); }
   };
   my_thread_reclaimer this_thread_reclaimer{&work_data_[index]};
   this_thread::set_thread_reclaimer(&this_thread_reclaimer);

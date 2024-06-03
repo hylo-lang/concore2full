@@ -64,9 +64,10 @@ public:
   int available_parallelism() const noexcept { return threads_.size(); }
 
 private:
-  //! Data corresponding to a thread. Contains a list of tasks corresponding to this thread, and
-  //! the required synchronization.
-  class thread_data {
+  //! Keeps track of a subset of tasks that need to be executed.
+  //! The pool has multiple instances of this class.
+  //! Typically, we try to associate one of this object to a thread.
+  class work_data {
   public:
     //! Requests the thread operating on this data to stop.
     void request_stop() noexcept;
@@ -149,7 +150,7 @@ private:
   std::vector<std::thread> threads_;
   //! Data corresponding to each working thread, containing the list of tasks that need to be
   //! executed.
-  std::vector<thread_data> work_data_;
+  std::vector<work_data> work_data_;
   //! The index of the next thread to get new tasks. We use unsigned integers as we want this value
   //! to nicely wrap around. The value can be bigger than the actual number of threads.
   std::atomic<uint32_t> thread_index_to_push_to_{0};
@@ -163,7 +164,7 @@ private:
    * that list, it will try to take tasks from other lists. If there are no tasks to execute, this
    * will wait for tasks to appear in the list corresponding to the current thread.
    *
-   * @sa thread_data
+   * @sa work_data
    */
   void thread_main(int index) noexcept;
 };
