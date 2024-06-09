@@ -58,7 +58,7 @@ void ensure_parallelism(concore2full::thread_pool& pool, int num_threads) {
   // Arrange
   std::atomic<int> task_counter{0};
   auto core_task_fun = [&task_counter, num_threads](int i) {
-    auto x = task_counter.fetch_add(1, std::memory_order_release);
+    task_counter.fetch_add(1, std::memory_order_release);
     wait_until([&] { return task_counter.load(std::memory_order_acquire) >= num_threads; });
   };
   int num_tasks = 3 * num_threads;

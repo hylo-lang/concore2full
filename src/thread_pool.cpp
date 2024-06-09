@@ -98,7 +98,7 @@ void thread_pool::offer_help_until(std::stop_token stop_condition) noexcept {
   (void)profiling::zone{CURRENT_LOCATION()};
 
   // Register a stop callback that ensures that the thread is woken up.
-  std::stop_callback callback(stop_condition, [=] { wakeup_all(); });
+  std::stop_callback callback(stop_condition, [this] { wakeup_all(); });
   // TODO: race condition when calling wakeup_all() when a thread is just preparing to go to sleep.
 
   // Run the loop to execute tasks.
