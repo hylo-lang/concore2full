@@ -184,9 +184,7 @@ TEST_CASE("thread_pool allows another thread to help executing work", "[thread_p
   // Arrange
   concore2full::thread_pool sut(2);
   std::stop_source ss;
-  std::thread extra_thread{[&] {
-    sut.offer_help_until(ss.get_token());
-  }};
+  std::thread extra_thread{[&] { sut.offer_help_until(ss.get_token()); }};
 
   // Act & Assert
   ensure_parallelism(sut, sut.available_parallelism() + 1);
@@ -198,15 +196,9 @@ TEST_CASE("thread_pool allows multiple threads to help executing work", "[thread
   // Arrange
   concore2full::thread_pool sut(2);
   std::stop_source ss;
-  std::thread extra_thread1{[&] {
-    sut.offer_help_until(ss.get_token());
-  }};
-  std::thread extra_thread2{[&] {
-    sut.offer_help_until(ss.get_token());
-  }};
-  std::thread extra_thread3{[&] {
-    sut.offer_help_until(ss.get_token());
-  }};
+  std::thread extra_thread1{[&] { sut.offer_help_until(ss.get_token()); }};
+  std::thread extra_thread2{[&] { sut.offer_help_until(ss.get_token()); }};
+  std::thread extra_thread3{[&] { sut.offer_help_until(ss.get_token()); }};
 
   // Act & Assert
   ensure_parallelism(sut, sut.available_parallelism() + 3);
