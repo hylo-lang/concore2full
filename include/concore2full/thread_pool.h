@@ -6,6 +6,8 @@
 #include <cassert>
 #include <condition_variable>
 #include <mutex>
+#include <semaphore>
+#include <stop_token>
 #include <thread>
 #include <vector>
 
@@ -55,6 +57,10 @@ public:
    */
   bool extract_task(concore2full_task* task) noexcept;
 
+  //! Makes the current thread join the thread pool until `stop_condition` is set, executing work
+  //! from the pool.
+  void offer_help_until(std::stop_token stop_condition) noexcept;
+
   //! Requests the thread to stop. The threads will stop after executing all the submitted work.
   void request_stop() noexcept;
   //! Waits for all the threads to complete; should be called after `request_stop()`.
@@ -69,9 +75,6 @@ private:
   //! Typically, we try to associate one of this object to a thread.
   class work_data {
   public:
-    //! Requests the thread operating on this data to stop.
-    void request_stop() noexcept;
-
     /**
      * @brief Try pushing a task into the list of tasks.
      * @param task The task that needs to be executed.
@@ -108,6 +111,7 @@ private:
 
     /**
      * @brief Pop a task to execute
+     * @param stop_condition Indicates when we should stop executing tasks or sleeping on this line.
      * @return The task to be executed, or null if stop was requested
      *
      * This will attempt to get a task from the list to be executed. If the mutex is already
@@ -119,13 +123,14 @@ private:
      *
      * @sa try_pop()
      */
-    [[nodiscard]] concore2full_task* pop() noexcept;
+    [[nodiscard]] concore2full_task* pop(std::stop_token stop_condition) noexcept;
 
     //! Removes `task` from the list of tasks.
     bool extract_task(concore2full_task* task) noexcept;
 
-    //! Wake up the worker thread.
-    //! This is needed in the case that the current thread needs to be reclaimed.
+    //! If a thread is waiting on `this`, wake it up.
+    //! Useful when we need to check stop conditions or when the current thread needs to be
+    //! reclaimed.
     void wakeup() noexcept;
 
   private:
@@ -135,9 +140,6 @@ private:
     std::condition_variable cv_;
     //! The stack of tasks that need to be executed.
     concore2full_task* tasks_stack_{nullptr};
-    //! Indicates when the we should not block while waiting for new task, ending the current worker
-    //! thread.
-    bool should_stop_{false};
 
     //! Pushes `task` to the worker, without worrying about the lock.
     void push_unprotected(concore2full_task* task) noexcept;
@@ -148,12 +150,19 @@ private:
 
   //! The threads that are doing the work.
   std::vector<std::thread> threads_;
-  //! Data corresponding to each working thread, containing the list of tasks that need to be
-  //! executed.
-  std::vector<work_data> work_data_;
+  //! The tasks that need to be executed, distributed among multiple "lines", so that they can be
+  //! handled in parallel by different threads
+  //! We may have more work lines than actual threads.
+  std::vector<work_data> work_lines_;
   //! The index of the next thread to get new tasks. We use unsigned integers as we want this value
   //! to nicely wrap around. The value can be bigger than the actual number of threads.
   std::atomic<uint32_t> thread_index_to_push_to_{0};
+
+  //! The global stop source that can be used to stop all the threads.
+  std::stop_source global_shutdown_;
+
+  //! Wake up all the threads sleeping on work lines.
+  void wakeup_all() noexcept;
 
   /**
    * @brief The main function to be executed by the worker threads
@@ -167,6 +176,11 @@ private:
    * @sa work_data
    */
   void thread_main(int index) noexcept;
+
+  //! Execute work from the thread pool until `stop_condition` is set.
+  //! Tries to use the work line with index `index_hint` first, but may use other lines, and can
+  //! steal tasks from other threads.
+  void execute_work(std::stop_token stop_condition, int index_hint) noexcept;
 };
 
 } // namespace concore2full

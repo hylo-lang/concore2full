@@ -42,7 +42,9 @@ size_t concurrency() {
 
 thread_pool::thread_pool() : thread_pool(concurrency()) {}
 
-thread_pool::thread_pool(int thread_count) : work_data_(thread_count) {
+thread_pool::thread_pool(int thread_count)
+    : work_lines_(thread_count + 1) // +1 for extra threads
+{
   threads_.reserve(thread_count);
   try {
     for (int i = 0; i < thread_count; i++) {
@@ -67,19 +69,21 @@ void thread_pool::enqueue(concore2full_task* task) noexcept {
   task->prev_link_ = nullptr;
 
   // Note: using uint32_t, as we need to safely wrap around.
-  uint32_t thread_count = threads_.size();
-  assert(thread_count > 0);
-  uint32_t index = thread_index_to_push_to_.fetch_add(1, std::memory_order_relaxed) % thread_count;
+  uint32_t work_lines_count = work_lines_.size();
+  assert(work_lines_count > 0);
+  uint32_t index =
+      thread_index_to_push_to_.fetch_add(1, std::memory_order_relaxed) % work_lines_count;
 
   // Try to push this to a worker thread without blocking.
-  for (uint32_t i = 0; i < thread_count; i++) {
-    uint32_t current_index = (index + i) % thread_count;
-    if (work_data_[current_index].try_push(task))
+  for (uint32_t i = 0; i < work_lines_count; i++) {
+    uint32_t current_index = (index + i) % work_lines_count;
+    if (work_lines_[current_index].try_push(task)) {
       return;
+    }
   }
   // If that didn't work, just force-push to the queue of the selected worker thread.
-  uint32_t current_index = index % thread_count;
-  work_data_[current_index].push(task);
+  uint32_t current_index = index % work_lines_count;
+  work_lines_[current_index].push(task);
 }
 
 bool thread_pool::extract_task(concore2full_task* task) noexcept {
@@ -90,10 +94,21 @@ bool thread_pool::extract_task(concore2full_task* task) noexcept {
   return d ? d->extract_task(task) : false;
 }
 
+void thread_pool::offer_help_until(std::stop_token stop_condition) noexcept {
+  (void)profiling::zone{CURRENT_LOCATION()};
+
+  // Register a stop callback that ensures that the thread is woken up.
+  std::stop_callback callback(stop_condition, [=] { wakeup_all(); });
+  // TODO: race condition when calling wakeup_all() when a thread is just preparing to go to sleep.
+
+  // Run the loop to execute tasks.
+  int index_hint = work_lines_.size() - 1;
+  execute_work(stop_condition, index_hint);
+}
+
 void thread_pool::request_stop() noexcept {
-  for (auto& d : work_data_) {
-    d.request_stop();
-  }
+  global_shutdown_.request_stop();
+  wakeup_all();
 }
 
 void thread_pool::join() noexcept {
@@ -103,11 +118,6 @@ void thread_pool::join() noexcept {
   threads_.clear();
 }
 
-void thread_pool::work_data::request_stop() noexcept {
-  std::lock_guard lock{bottleneck_};
-  should_stop_ = true;
-  cv_.notify_one();
-}
 bool thread_pool::work_data::try_push(concore2full_task* task) noexcept {
   // Fail if we can't acquire the lock.
   std::unique_lock lock{bottleneck_, std::try_to_lock};
@@ -128,10 +138,10 @@ concore2full_task* thread_pool::work_data::try_pop() noexcept {
     return nullptr;
   return pop_unprotected();
 }
-concore2full_task* thread_pool::work_data::pop() noexcept {
+concore2full_task* thread_pool::work_data::pop(std::stop_token stop_condition) noexcept {
   std::unique_lock lock{bottleneck_};
   while (!tasks_stack_) {
-    if (should_stop_)
+    if (stop_condition.stop_requested())
       return nullptr;
     this_thread::inversion_checkpoint();
     cv_.wait(lock);
@@ -161,7 +171,7 @@ bool thread_pool::work_data::extract_task(concore2full_task* task) noexcept {
   }
 }
 
-void thread_pool::work_data::wakeup() noexcept { cv_.notify_one(); }
+void thread_pool::work_data::wakeup() noexcept { cv_.notify_all(); }
 
 void thread_pool::work_data::push_unprotected(concore2full_task* task) noexcept {
   // Add the task in the front of the list.
@@ -175,8 +185,11 @@ void thread_pool::work_data::push_unprotected(concore2full_task* task) noexcept 
   tasks_stack_ = task;
   assert(check_list(tasks_stack_, this));
   // Wake up the worker thread if this is the only task in the queue.
-  if (was_empty)
-    cv_.notify_one();
+  // Note: if this is the work line dedicated to external threads, there might be multiple threads
+  // waiting here.
+  if (was_empty) {
+    cv_.notify_all();
+  }
 }
 
 concore2full_task* thread_pool::work_data::pop_unprotected() noexcept {
@@ -194,6 +207,12 @@ concore2full_task* thread_pool::work_data::pop_unprotected() noexcept {
   return nullptr;
 }
 
+void thread_pool::wakeup_all() noexcept {
+  for (auto& l : work_lines_) {
+    l.wakeup();
+  }
+}
+
 std::string thread_name(int index) { return "worker-" + std::to_string(index); }
 
 void thread_pool::thread_main(int index) noexcept {
@@ -201,20 +220,37 @@ void thread_pool::thread_main(int index) noexcept {
 
   (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread start")};
 
-  // Register a thread_reclaimer object
-  struct my_thread_reclaimer : thread_reclaimer {
-    work_data* cur_work_data_;
-    explicit my_thread_reclaimer(work_data* t) : cur_work_data_(t) {}
-    void start_reclaiming() override { cur_work_data_->wakeup(); }
-  };
-  my_thread_reclaimer this_thread_reclaimer{&work_data_[index]};
-  this_thread::set_thread_reclaimer(&this_thread_reclaimer);
-
   // We need to exit on the same thread.
   thread_snapshot t;
 
-  int thread_count = threads_.size();
-  while (true) {
+  // Run the loop to execute tasks.
+  execute_work(global_shutdown_.get_token(), index);
+
+  // Ensure we finish on the same thread
+  t.revert();
+
+  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread end")};
+}
+
+void thread_pool::execute_work(std::stop_token stop_condition, int index_hint) noexcept {
+  // Save the current thread reclaimer.
+  auto old_reclaimer = this_thread::get_thread_reclaimer();
+
+  // Register a new thread_reclaimer object
+  struct my_thread_reclaimer : thread_reclaimer {
+    thread_pool* self_;
+    explicit my_thread_reclaimer(thread_pool* self) : self_(self) {}
+    void start_reclaiming() override { self_->wakeup_all(); }
+  };
+  my_thread_reclaimer this_thread_reclaimer{this};
+  this_thread::set_thread_reclaimer(&this_thread_reclaimer);
+
+  int work_lines_count = work_lines_.size();
+  while (!stop_condition.stop_requested()) {
+    // Acquire a work line to execute tasks from it, or to sleep on it.
+    uint32_t work_line_index = index_hint % work_lines_count;
+    work_data& our_work_line = work_lines_[work_line_index];
+
     // First check if we need to restore this thread to somebody else.
     this_thread::inversion_checkpoint();
 
@@ -222,21 +258,23 @@ void thread_pool::thread_main(int index) noexcept {
     int current_index = 0;
 
     // Try to pop a task from the first thread data available.
-    for (int i = 0; i < thread_count; i++) {
-      current_index = (i + index) % thread_count;
-      to_execute = work_data_[current_index].try_pop();
+    // Note: we might pop a task from a different line
+    for (int i = 0; i < work_lines_count * 2; i++) {
+      current_index = (i + work_line_index) % work_lines_count;
+      to_execute = work_lines_[current_index].try_pop();
       if (to_execute)
         break;
     }
 
     // If we can't find anything available, block on our task queue.
     if (!to_execute) {
-      current_index = index;
-      to_execute = work_data_[current_index].pop();
+      current_index = work_line_index;
+      to_execute = our_work_line.pop(stop_condition);
+    }
 
-      // If stop was requested, exit thread worker function.
-      if (!to_execute)
-        break;
+    // If stop was requested, exit the loop.
+    if (!to_execute) {
+      break;
     }
 
     assert(to_execute);
@@ -246,10 +284,8 @@ void thread_pool::thread_main(int index) noexcept {
     to_execute->task_function_(to_execute, current_index);
   }
 
-  // Ensure we finish on the same thread
-  t.revert();
-
-  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread end")};
+  // Restore the old thread reclaimer.
+  this_thread::set_thread_reclaimer(old_reclaimer);
 }
 
 } // namespace concore2full
