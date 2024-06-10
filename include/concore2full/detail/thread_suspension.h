@@ -39,9 +39,6 @@ struct thread_suspension {
 private:
   //! The continuation after the suspension point.
   concore2full::detail::catomic<context_core_api_fcontext_t> continuation_;
-
-  //! The thread reclaimer used at the point of suspension.
-  thread_reclaimer* thread_reclaimer_{nullptr};
 };
 
 } // namespace concore2full::detail

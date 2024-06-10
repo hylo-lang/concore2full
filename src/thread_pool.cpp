@@ -246,9 +246,6 @@ void thread_pool::thread_main(int index) noexcept {
 }
 
 void thread_pool::execute_work(std::stop_token stop_condition, int index_hint) noexcept {
-  // Save the current thread reclaimer.
-  auto old_reclaimer = this_thread::get_thread_reclaimer();
-
   int work_lines_count = work_lines_.size();
   while (!stop_condition.stop_requested()) {
     // Acquire a work line to execute tasks from it, or to sleep on it.
@@ -287,9 +284,6 @@ void thread_pool::execute_work(std::stop_token stop_condition, int index_hint) n
     zone2.add_flow_terminate(reinterpret_cast<uint64_t>(to_execute));
     to_execute->task_function_(to_execute, current_index);
   }
-
-  // Restore the old thread reclaimer.
-  this_thread::set_thread_reclaimer(old_reclaimer);
 }
 
 } // namespace concore2full
