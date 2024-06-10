@@ -140,11 +140,24 @@ concore2full_task* thread_pool::work_data::try_pop() noexcept {
 }
 concore2full_task* thread_pool::work_data::pop(std::stop_token stop_condition) noexcept {
   std::unique_lock lock{bottleneck_};
-  while (!tasks_stack_) {
-    if (stop_condition.stop_requested())
-      return nullptr;
-    this_thread::inversion_checkpoint();
-    cv_.wait(lock);
+  if (!tasks_stack_) {
+    // Register a new thread_reclaimer object that allows us to wake up the thread if a thread
+    // inversion is needed.
+    struct my_thread_reclaimer : thread_reclaimer {
+      std::condition_variable& cv_;
+      explicit my_thread_reclaimer(std::condition_variable& cv) : cv_(cv) {}
+      void start_reclaiming() override { cv_.notify_all(); }
+    };
+    my_thread_reclaimer this_thread_reclaimer{cv_};
+    this_thread::set_thread_reclaimer(&this_thread_reclaimer);
+
+    while (!tasks_stack_) {
+      if (stop_condition.stop_requested())
+        return nullptr;
+
+      this_thread::inversion_checkpoint();
+      cv_.wait(lock);
+    }
   }
   return pop_unprotected();
 }
@@ -235,15 +248,6 @@ void thread_pool::thread_main(int index) noexcept {
 void thread_pool::execute_work(std::stop_token stop_condition, int index_hint) noexcept {
   // Save the current thread reclaimer.
   auto old_reclaimer = this_thread::get_thread_reclaimer();
-
-  // Register a new thread_reclaimer object
-  struct my_thread_reclaimer : thread_reclaimer {
-    thread_pool* self_;
-    explicit my_thread_reclaimer(thread_pool* self) : self_(self) {}
-    void start_reclaiming() override { self_->wakeup_all(); }
-  };
-  my_thread_reclaimer this_thread_reclaimer{this};
-  this_thread::set_thread_reclaimer(&this_thread_reclaimer);
 
   int work_lines_count = work_lines_.size();
   while (!stop_condition.stop_requested()) {
