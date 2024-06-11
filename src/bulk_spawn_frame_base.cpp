@@ -36,8 +36,7 @@ int bulk_spawn_frame_base::store_worker_continuation(continuation_t c) {
   return cont_index;
 }
 
-concore2full::detail::catomic<context_core_api_fcontext_t>*
-bulk_spawn_frame_base::extract_continuation() {
+concore2full::detail::catomic<continuation_t>* bulk_spawn_frame_base::extract_continuation() {
   while (true) {
     // Obtain the index of the slot from which we need to extract.
     int index = atomic_fetch_add(&completed_tasks_, 1);
@@ -80,7 +79,7 @@ void bulk_spawn_frame_base::execute_bulk_spawn_task(concore2full_task* t, int) n
     frame->user_function_(frame->to_interface(), index);
 
     // Extract the next free continuation data and switch to it.
-    catomic<context_core_api_fcontext_t>* cont_data = frame->extract_continuation();
+    catomic<continuation_t>* cont_data = frame->extract_continuation();
     if (cont_data == &frame->threads_[cont_index]) {
       // We are finishing on the same thread that started the task.
       frame->finalize_thread_of_execution(false);
@@ -99,9 +98,9 @@ void bulk_spawn_frame_base::execute_bulk_spawn_task(concore2full_task* t, int) n
 }
 
 uint64_t bulk_spawn_frame_base::frame_size(int32_t count) {
-  return sizeof(bulk_spawn_frame_base)                                //
-         + count * sizeof(concore2full_bulk_spawn_task)               //
-         + (count + 1) * sizeof(catomic<context_core_api_fcontext_t>) //
+  return sizeof(bulk_spawn_frame_base)                   //
+         + count * sizeof(concore2full_bulk_spawn_task)  //
+         + (count + 1) * sizeof(catomic<continuation_t>) //
       ;
 }
 
@@ -110,7 +109,7 @@ void bulk_spawn_frame_base::spawn(int32_t count, concore2full_bulk_spawn_functio
   size_t size_tasks = count * sizeof(concore2full_bulk_spawn_task);
   char* p = reinterpret_cast<char*>(this);
   tasks_ = reinterpret_cast<concore2full_bulk_spawn_task*>(p + size_struct);
-  threads_ = reinterpret_cast<catomic<context_core_api_fcontext_t>*>(p + size_struct + size_tasks);
+  threads_ = reinterpret_cast<catomic<continuation_t>*>(p + size_struct + size_tasks);
 
   count_ = count;
   started_tasks_ = 0;
@@ -123,7 +122,7 @@ void bulk_spawn_frame_base::spawn(int32_t count, concore2full_bulk_spawn_functio
     tasks_[i].base_ = this;
   }
   for (int i = 0; i < count + 1; i++) {
-    threads_[i] = catomic<context_core_api_fcontext_t>{};
+    threads_[i] = catomic<continuation_t>{};
   }
 
   concore2full::global_thread_pool().enqueue_bulk(tasks_, count);

@@ -37,10 +37,10 @@ private:
   std::atomic<uint32_t> sync_state_;
 
   //! The suspension point of the originator of the spawn.
-  context_core_api_fcontext_t originator_;
+  continuation_t originator_;
 
   //! The suspension point of the thread that is performing the spawned work.
-  context_core_api_fcontext_t secondary_thread_;
+  continuation_t secondary_thread_;
 
   //! The user function to be called to execute the async work.
   concore2full_spawn_function_t user_function_;
