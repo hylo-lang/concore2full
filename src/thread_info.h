@@ -1,6 +1,6 @@
 #pragma once
 
-#include "concore2full/detail/thread_suspension.h"
+#include "concore2full/detail/core_types.h"
 
 #include <semaphore>
 
@@ -45,9 +45,9 @@ struct thread_info {
   //! The data used for switching control flow with other threads.
   thread_switch_control switch_control_;
   //! The thread that is originates the switch.
-  thread_suspension originator_{};
+  context_core_api_fcontext_t originator_{};
   //! The target thread for the switch.
-  thread_suspension target_{};
+  context_core_api_fcontext_t target_{};
 };
 
 //! Get the data associated with the current thread.
