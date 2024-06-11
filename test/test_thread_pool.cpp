@@ -1,3 +1,4 @@
+#include "concore2full/sync_execute.h"
 #include "concore2full/thread_pool.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -180,11 +181,18 @@ TEST_CASE("thread_pool can enqueue multiple tasks at once, and execute them", "[
   REQUIRE(count.load() == num_tasks);
 }
 
+//! Returns a thread that joins `pool` to help until `stop_token`.
+std::thread helper_thread(concore2full::thread_pool& pool, std::stop_token stop_token) {
+  return std::thread{[&pool, stop_token] {
+    concore2full::sync_execute([&pool, stop_token] { pool.offer_help_until(stop_token); });
+  }};
+}
+
 TEST_CASE("thread_pool allows another thread to help executing work", "[thread_pool]") {
   // Arrange
   concore2full::thread_pool sut(2);
   std::stop_source ss;
-  std::thread extra_thread{[&] { sut.offer_help_until(ss.get_token()); }};
+  auto extra_thread = helper_thread(sut, ss.get_token());
 
   // Act & Assert
   ensure_parallelism(sut, sut.available_parallelism() + 1);
@@ -196,9 +204,9 @@ TEST_CASE("thread_pool allows multiple threads to help executing work", "[thread
   // Arrange
   concore2full::thread_pool sut(2);
   std::stop_source ss;
-  std::thread extra_thread1{[&] { sut.offer_help_until(ss.get_token()); }};
-  std::thread extra_thread2{[&] { sut.offer_help_until(ss.get_token()); }};
-  std::thread extra_thread3{[&] { sut.offer_help_until(ss.get_token()); }};
+  auto extra_thread1 = helper_thread(sut, ss.get_token());
+  auto extra_thread2 = helper_thread(sut, ss.get_token());
+  auto extra_thread3 = helper_thread(sut, ss.get_token());
 
   // Act & Assert
   ensure_parallelism(sut, sut.available_parallelism() + 3);

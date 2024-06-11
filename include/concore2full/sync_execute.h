@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concore2full/profiling.h>
 #include <concore2full/thread_snapshot.h>
 
 #include <concepts>
