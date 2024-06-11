@@ -45,9 +45,9 @@ struct thread_info {
   //! The data used for switching control flow with other threads.
   thread_switch_control switch_control_;
   //! The thread that is originates the switch.
-  context_core_api_fcontext_t originator_{};
+  continuation_t originator_{};
   //! The target thread for the switch.
-  context_core_api_fcontext_t target_{};
+  continuation_t target_{};
 };
 
 //! Get the data associated with the current thread.
