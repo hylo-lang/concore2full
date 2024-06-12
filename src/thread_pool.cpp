@@ -156,7 +156,9 @@ concore2full_task* thread_pool::work_data::pop(std::stop_token stop_condition) n
         return nullptr;
 
       this_thread::inversion_checkpoint();
+      num_waiting_threads_++;
       cv_.wait(lock);
+      num_waiting_threads_--;
     }
   }
   return pop_unprotected();
@@ -184,12 +186,19 @@ bool thread_pool::work_data::extract_task(concore2full_task* task) noexcept {
   }
 }
 
-void thread_pool::work_data::wakeup() noexcept { cv_.notify_all(); }
+void thread_pool::work_data::wakeup() noexcept {
+  int num_waiting_threads = 0;
+  {
+    std::lock_guard lock{bottleneck_};
+    num_waiting_threads = num_waiting_threads_;
+  }
+  for (int i = 0; i < num_waiting_threads; i++)
+    cv_.notify_one();
+}
 
 void thread_pool::work_data::push_unprotected(concore2full_task* task) noexcept {
   // Add the task in the front of the list.
   assert(check_list(tasks_stack_, this));
-  bool was_empty = tasks_stack_ == nullptr;
   task->worker_data_ = this;
   task->next_ = tasks_stack_;
   if (tasks_stack_)
@@ -197,12 +206,9 @@ void thread_pool::work_data::push_unprotected(concore2full_task* task) noexcept 
   task->prev_link_ = &tasks_stack_;
   tasks_stack_ = task;
   assert(check_list(tasks_stack_, this));
-  // Wake up the worker thread if this is the only task in the queue.
-  // Note: if this is the work line dedicated to external threads, there might be multiple threads
-  // waiting here.
-  if (was_empty) {
+  // If there are threads waiting on this work line, wake them up.
+  if (num_waiting_threads_ > 0)
     cv_.notify_all();
-  }
 }
 
 concore2full_task* thread_pool::work_data::pop_unprotected() noexcept {

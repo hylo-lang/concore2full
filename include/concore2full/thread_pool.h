@@ -134,12 +134,14 @@ private:
     void wakeup() noexcept;
 
   private:
-    //! Mutex used to protect the access to the task list.
+    //! The stack of tasks that need to be executed.
+    concore2full_task* tasks_stack_{nullptr};
+    //! The number of threads that are waiting on this work line.
+    int num_waiting_threads_{0};
+    //! Mutex used to protect the access to `tasks_stack_` and `num_waiting_threads_`.
     std::mutex bottleneck_;
     //! Conditional variable used to wait on when there is no task to be executed.
     std::condition_variable cv_;
-    //! The stack of tasks that need to be executed.
-    concore2full_task* tasks_stack_{nullptr};
 
     //! Pushes `task` to the worker, without worrying about the lock.
     void push_unprotected(concore2full_task* task) noexcept;

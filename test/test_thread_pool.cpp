@@ -56,26 +56,31 @@ struct std_fun_task : concore2full_task {
 
 //! Test that ensures that `pool` has at least `num_threads` parallelism.
 void ensure_parallelism(concore2full::thread_pool& pool, int num_threads) {
-  // Arrange
-  std::atomic<int> task_counter{0};
-  auto core_task_fun = [&task_counter, num_threads](int i) {
-    task_counter.fetch_add(1, std::memory_order_release);
-    wait_until([&] { return task_counter.load(std::memory_order_acquire) >= num_threads; });
-  };
-  int num_tasks = 3 * num_threads;
-  std::vector<std_fun_task> tasks;
-  tasks.reserve(num_tasks);
-  for (int i = 0; i < num_tasks; i++) {
-    tasks.emplace_back(std::function<void()>([&core_task_fun, i] { core_task_fun(i); }));
-  }
+  concore2full::sync_execute([&pool, num_threads] {
+    // Arrange
+    std::atomic<int> tasks_started{0};
+    std::atomic<int> tasks_finished{0};
+    int num_tasks = 30 * num_threads; // We may have an uneven number of tasks per thread; thus,
+                                      // create many many tasks, to increase the chances of having a
+                                      // task for each thread.
+    std::vector<std_fun_task> tasks;
+    tasks.reserve(num_tasks);
+    for (int i = 0; i < num_tasks; i++) {
+      tasks.emplace_back(std::function<void()>([&tasks_started, &tasks_finished, num_threads, i] {
+        tasks_started.fetch_add(1, std::memory_order_release);
+        wait_until([&] { return tasks_started.load(std::memory_order_acquire) >= num_threads; });
+        tasks_finished.fetch_add(1, std::memory_order_release);
+      }));
+    }
 
-  // Act
-  for (auto& t : tasks) {
-    pool.enqueue(&t);
-  }
+    // Act
+    for (auto& t : tasks) {
+      pool.enqueue(&t);
+    }
 
-  // Assert
-  wait_until([&] { return task_counter.load() >= num_tasks; });
+    // Assert
+    wait_until([&] { return tasks_finished.load() >= num_tasks; });
+  });
 }
 
 TEST_CASE("thread_pool can be default constructed, and has some parallelism", "[thread_pool]") {
@@ -143,6 +148,8 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the available hardware 
   if (sut.available_parallelism() < 2)
     return;
   ensure_parallelism(sut, sut.available_parallelism());
+  sut.request_stop();
+  sut.join();
 }
 
 TEST_CASE("thread_pool can enqueue multiple tasks at once, and execute them", "[thread_pool]") {
