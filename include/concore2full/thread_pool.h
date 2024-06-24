@@ -63,6 +63,9 @@ public:
   //! Returns the number of threads in `this`.
   int available_parallelism() const noexcept { return threads_.size(); }
 
+  //! Wakes up all the threads in the pool. Temporary function, to be removed.
+  void wakeup() noexcept;
+
 private:
   //! Data corresponding to a thread. Contains a list of tasks corresponding to this thread, and
   //! the required synchronization.

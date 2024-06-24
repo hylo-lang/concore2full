@@ -103,6 +103,13 @@ void thread_pool::join() noexcept {
   threads_.clear();
 }
 
+void thread_pool::wakeup() noexcept {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  for (auto& d : work_data_) {
+    d.wakeup();
+  }
+}
+
 void thread_pool::thread_data::request_stop() noexcept {
   std::lock_guard lock{bottleneck_};
   should_stop_ = true;
@@ -161,7 +168,12 @@ bool thread_pool::thread_data::extract_task(concore2full_task* task) noexcept {
   }
 }
 
-void thread_pool::thread_data::wakeup() noexcept { cv_.notify_one(); }
+void thread_pool::thread_data::wakeup() noexcept {
+  // NOTE: We may have a race condition here.
+  // We might be notifying a thread after we checked for inversion, and the thread is preparing to
+  // go to sleep.
+  cv_.notify_one();
+}
 
 void thread_pool::thread_data::push_unprotected(concore2full_task* task) noexcept {
   // Add the task in the front of the list.
@@ -203,11 +215,16 @@ void thread_pool::thread_main(int index) noexcept {
 
   // Register a thread_reclaimer object
   struct my_thread_reclaimer : thread_reclaimer {
-    thread_data* cur_thread_data_;
-    explicit my_thread_reclaimer(thread_data* t) : cur_thread_data_(t) {}
-    void start_reclaiming() override { cur_thread_data_->wakeup(); }
+    // thread_data* cur_thread_data_;
+    thread_pool* pool_;
+    explicit my_thread_reclaimer(thread_pool* pool) : pool_(pool) {}
+    void start_reclaiming() override {
+      for (auto& d : pool_->work_data_) {
+        d.wakeup();
+      }
+    }
   };
-  my_thread_reclaimer this_thread_reclaimer{&work_data_[index]};
+  my_thread_reclaimer this_thread_reclaimer{this};
   this_thread::set_thread_reclaimer(&this_thread_reclaimer);
 
   // We need to exit on the same thread.
