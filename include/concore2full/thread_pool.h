@@ -1,10 +1,10 @@
 #pragma once
 
 #include "concore2full/c/task.h"
+#include "concore2full/detail/sleep_helper.h"
 #include "concore2full/profiling.h"
 
 #include <cassert>
-#include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -133,8 +133,8 @@ private:
   private:
     //! Mutex used to protect the access to the task list.
     std::mutex bottleneck_;
-    //! Conditional variable used to wait on when there is no task to be executed.
-    std::condition_variable cv_;
+    //! Token used to wake up the thread.
+    detail::wakeup_token wakeup_token_;
     //! The stack of tasks that need to be executed.
     concore2full_task* tasks_stack_{nullptr};
     //! Indicates when the we should not block while waiting for new task, ending the current worker

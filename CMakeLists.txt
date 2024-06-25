@@ -11,6 +11,7 @@ src/spawn.cpp
 src/spawn_frame_base.cpp
 src/bulk_spawn_frame_base.cpp
 src/this_thread.cpp
+src/sleep_helper.cpp
 src/thread_info.cpp
 src/thread_pool.cpp
 src/thread_snapshot.cpp

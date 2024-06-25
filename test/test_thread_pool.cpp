@@ -9,6 +9,23 @@
 
 using namespace std::chrono_literals;
 
+//! Wait until `predicate` returns true, using the pool-waiting technique.
+//! Throws if `timeout` is reached.
+void wait_until(std::predicate auto predicate, std::chrono::milliseconds sleep_time = 1ms,
+                std::chrono::milliseconds timeout = 1s) {
+  auto start_time = std::chrono::high_resolution_clock::now();
+  while (true) {
+    // If the predicate is true, we are done.
+    if (predicate())
+      return;
+    // Check for timeout.
+    if (std::chrono::high_resolution_clock::now() - start_time > timeout)
+      throw std::runtime_error("Timeout");
+    // Sleep for a while.
+    std::this_thread::sleep_for(sleep_time);
+  }
+}
+
 template <std::invocable Fn> struct fun_task : concore2full_task {
   Fn f_;
   explicit fun_task(Fn&& f) : f_(std::forward<Fn>(f)) {
@@ -45,6 +62,7 @@ TEST_CASE("thread_pool can execute tasks", "[thread_pool]") {
 
   // Act
   sut.enqueue(&task);
+  wait_until([&] { return called; });
   sut.request_stop();
   sut.join();
 
@@ -56,7 +74,7 @@ TEST_CASE("thread_pool can execute two tasks in parallel", "[thread_pool]") {
   concore2full::thread_pool sut;
   if (sut.available_parallelism() < 2)
     return;
-  std::latch l{2};
+  std::latch l{3};
   bool called1{false};
   bool called2{false};
   fun_task task1{[&called1, &l] {
@@ -71,6 +89,7 @@ TEST_CASE("thread_pool can execute two tasks in parallel", "[thread_pool]") {
   // Act
   sut.enqueue(&task1);
   sut.enqueue(&task2);
+  l.arrive_and_wait();
   sut.request_stop();
   sut.join();
 
@@ -140,6 +159,7 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the available hardware 
     for (auto& t : tasks) {
       sut.enqueue(&t);
     }
+    wait_until([&] { return task_counter.load(std::memory_order_relaxed) == num_tasks; });
     sut.request_stop();
     sut.join();
 
@@ -178,6 +198,7 @@ TEST_CASE("thread_pool can enqueue multiple tasks at once, and execute them", "[
 
   // Act
   sut.enqueue_bulk(&tasks[0], num_tasks);
+  wait_until([&] { return count.load(std::memory_order_relaxed) == num_tasks; });
   sut.request_stop();
   sut.join();
 

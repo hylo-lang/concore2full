@@ -210,16 +210,7 @@ void switch_to(thread_info* target) {
         // Note: the other thread cannot exit the scope of `switch_to` until the switch is done.
 
         // Make sure the other thread is woken up.
-        // TODO: revisit reclaiming logic. Reclaimer objects are not properly set.
-        // auto* reclaimer = target->thread_reclaimer_;
-        // if (reclaimer) {
-        //   reclaimer->start_reclaiming();
-        // }
-        // Safety: reclaimer should live as long as the thread lives. Both this and the other
-        // threads are in the switching process, and won't destroy the reclaimer.
-
-        // Temporary workaround.
-        global_thread_pool().wakeup();
+        wake_up(*target);
 
         // Note: after this point, the other thread can finish the "switch request" and immediately
         // continue on the current thread. This thread might end very soon.
@@ -253,6 +244,22 @@ void check_for_thread_switch() {
   if (originator) {
     requested_switch_with(originator);
   }
+}
+
+uint32_t prepare_sleep(thread_info& thread) {
+  return thread.sleeping_counter_.load(std::memory_order_acquire);
+  // Sync: treat this sleep as an acquire barrier, to help with synchronization in the outside code.
+}
+
+void sleep(thread_info& thread, uint32_t sleep_id) {
+  thread.sleeping_counter_.wait(sleep_id, std::memory_order_acquire);
+  // Sync: treat this sleep as an acquire barrier.
+}
+
+void wake_up(thread_info& thread) {
+  thread.sleeping_counter_.fetch_add(1, std::memory_order_release);
+  thread.sleeping_counter_.notify_one();
+  // Sync: treat this wake-up as a release barrier.
 }
 
 } // namespace concore2full::detail
