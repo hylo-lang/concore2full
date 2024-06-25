@@ -6,10 +6,6 @@
 
 #include <semaphore>
 
-namespace concore2full {
-class thread_reclaimer;
-}
-
 namespace concore2full::detail {
 
 struct thread_info;
@@ -19,9 +15,6 @@ struct thread_info;
 struct thread_info {
   //! The ID of the thread.
   std::thread::id thread_id_{};
-
-  //! The object that needs to be notified when we want to switch control flow with another thread.
-  thread_reclaimer* thread_reclaimer_{nullptr};
 
   //! Indicates if this thread should join the switch process initiated by the value stored in here.
   std::atomic<thread_info*> should_switch_with_{nullptr};

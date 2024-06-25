@@ -2,7 +2,6 @@
 #include "concore2full/detail/sleep_helper.h"
 #include "concore2full/profiling.h"
 #include "concore2full/this_thread.h"
-#include "concore2full/thread_reclaimer.h"
 #include "concore2full/thread_snapshot.h"
 
 #include <chrono>
@@ -235,20 +234,6 @@ void thread_pool::thread_main(int index) noexcept {
   concore2full::profiling::emit_thread_name_and_stack(thread_name(index).c_str());
 
   (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread start")};
-
-  // Register a thread_reclaimer object
-  struct my_thread_reclaimer : thread_reclaimer {
-    // thread_data* cur_thread_data_;
-    thread_pool* pool_;
-    explicit my_thread_reclaimer(thread_pool* pool) : pool_(pool) {}
-    void start_reclaiming() override {
-      for (auto& d : pool_->work_data_) {
-        d.wakeup();
-      }
-    }
-  };
-  my_thread_reclaimer this_thread_reclaimer{this};
-  this_thread::set_thread_reclaimer(&this_thread_reclaimer);
 
   // We need to exit on the same thread.
   thread_snapshot t;

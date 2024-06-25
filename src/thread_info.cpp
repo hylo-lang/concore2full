@@ -2,7 +2,6 @@
 #include <concore2full/detail/atomic_wait.h>
 #include <concore2full/detail/callcc.h>
 #include <concore2full/global_thread_pool.h>
-#include <concore2full/thread_reclaimer.h>
 
 #include <cassert>
 #include <mutex>
@@ -49,7 +48,7 @@ target->is_currently_switching_)
   - writes target->should_switch_with_
     - target thread is alive, as we are the ones that should terminate the target thread
     - we are the only one that started the switch process, and no-one else can write to this field
-  - reads & uses target->thread_reclaimer_
+  - reads & uses target->sleeping_counter_
     - target thread is alive, as we are the ones that should terminate the target thread
 */
 

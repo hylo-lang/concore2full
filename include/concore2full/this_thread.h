@@ -2,30 +2,7 @@
 
 #include <atomic>
 
-namespace concore2full {
-class thread_reclaimer;
-}
-
 namespace concore2full::this_thread {
-
-/**
- * @brief Get the `thread_reclaimer` object associated with the current thread.
- * @return The `thread_reclaimer` object on this thread.
- *
- * The returned object should be owned by the thread pool that operates on this thread. It can be
- * used to tell the thread pool that someone needs to perform a thread switch with this thread.
- */
-thread_reclaimer* get_thread_reclaimer();
-
-/**
- * @brief Set the `thread_reclaimer` object for this thread.
- * @param new_reclaimer The new reclaimer object we want to set.
- *
- * The object set to the current thread should be owned by the thread pool that operates on this
- * thread. It can be used to tell the thread pool that someone needs to perform a thread switch with
- * this thread.
- */
-void set_thread_reclaimer(thread_reclaimer* new_reclaimer);
 
 /**
  * @brief Checkpoint for performing thread inversions.
