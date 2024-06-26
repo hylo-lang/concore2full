@@ -2,7 +2,6 @@
 
 #include "concore2full/detail/catomic.h"
 #include "concore2full/detail/core_types.h"
-#include "concore2full/detail/thread_suspension.h"
 
 #include <semaphore>
 
