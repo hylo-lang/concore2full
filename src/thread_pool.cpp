@@ -103,13 +103,6 @@ void thread_pool::join() noexcept {
   threads_.clear();
 }
 
-void thread_pool::wakeup() noexcept {
-  concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  for (auto& d : work_data_) {
-    d.wakeup();
-  }
-}
-
 void thread_pool::thread_data::request_stop() noexcept {
   std::unique_lock lock{bottleneck_};
   should_stop_ = true;
