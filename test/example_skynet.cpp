@@ -12,11 +12,11 @@
 using namespace std::chrono_literals;
 
 uint64_t skynet_strict(int num, int size, int div) {
-  concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  zone.set_param("num", int64_t(num));
-  zone.set_param("size", int64_t(size));
+  // concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  // zone.set_param("num", int64_t(num));
+  // zone.set_param("size", int64_t(size));
   if (size == 1) {
-    concore2full::profiling::zone z1{CURRENT_LOCATION_N("skynet-1")};
+    // concore2full::profiling::zone z1{CURRENT_LOCATION_N("skynet-1")};
     return uint64_t(num);
   } else {
     const int sub_size = size / div;
@@ -68,11 +68,11 @@ struct skynet_weak_fun {
 };
 
 uint64_t skynet_weak(int num, int size, int div) {
-  concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  zone.set_param("num", int64_t(num));
-  zone.set_param("size", int64_t(size));
+  // concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  // zone.set_param("num", int64_t(num));
+  // zone.set_param("size", int64_t(size));
   if (size == 1) {
-    concore2full::profiling::zone z1{CURRENT_LOCATION_N("skynet-1")};
+    // concore2full::profiling::zone z1{CURRENT_LOCATION_N("skynet-1")};
     return uint64_t(num);
   } else {
     using future_t = decltype(concore2full::escaping_spawn(skynet_weak_fun{0, 0, 0}));
@@ -96,11 +96,11 @@ uint64_t skynet_weak(int num, int size, int div) {
 }
 
 uint64_t skynet_bulk(int num, int size, int div) {
-  concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  zone.set_param("num", int64_t(num));
-  zone.set_param("size", int64_t(size));
+  // concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  // zone.set_param("num", int64_t(num));
+  // zone.set_param("size", int64_t(size));
   if (size == 1) {
-    concore2full::profiling::zone z1{CURRENT_LOCATION_N("skynet-1")};
+    // concore2full::profiling::zone z1{CURRENT_LOCATION_N("skynet-1")};
     return uint64_t(num);
   } else {
     std::vector<uint64_t> results(div);

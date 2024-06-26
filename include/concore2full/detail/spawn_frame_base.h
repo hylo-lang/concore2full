@@ -3,7 +3,6 @@
 #include "concore2full/c/spawn.h"
 #include "concore2full/c/task.h"
 #include "concore2full/detail/callcc.h"
-#include "concore2full/detail/thread_suspension.h"
 #include "concore2full/detail/value_holder.h"
 #include "concore2full/this_thread.h"
 
@@ -38,10 +37,10 @@ private:
   std::atomic<uint32_t> sync_state_;
 
   //! The suspension point of the originator of the spawn.
-  thread_suspension originator_;
+  continuation_t originator_;
 
   //! The suspension point of the thread that is performing the spawned work.
-  thread_suspension secondary_thread_;
+  continuation_t secondary_thread_;
 
   //! The user function to be called to execute the async work.
   concore2full_spawn_function_t user_function_;

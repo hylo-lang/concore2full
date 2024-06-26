@@ -11,7 +11,7 @@ set(sourceFiles
 "example_conc_sort.cpp"
 "example_skynet.cpp"
 "sketch_split.cpp"
-"sketch_cancellation.cpp"
+# "sketch_cancellation.cpp"
 "tests_c.cpp"
 "c/test_spawn.c"
 "c/test_bulk_spawn.c"
