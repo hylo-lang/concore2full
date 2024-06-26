@@ -42,7 +42,7 @@ size_t concurrency() {
 
 thread_pool::thread_pool() : thread_pool(concurrency()) {}
 
-thread_pool::thread_pool(int thread_count) : work_data_(thread_count) {
+thread_pool::thread_pool(int thread_count) : work_lines_(thread_count) {
   threads_.reserve(thread_count);
   try {
     for (int i = 0; i < thread_count; i++) {
@@ -74,25 +74,25 @@ void thread_pool::enqueue(concore2full_task* task) noexcept {
   // Try to push this to a worker thread without blocking.
   for (uint32_t i = 0; i < thread_count; i++) {
     uint32_t current_index = (index + i) % thread_count;
-    if (work_data_[current_index].try_push(task))
+    if (work_lines_[current_index].try_push(task))
       return;
   }
   // If that didn't work, just force-push to the queue of the selected worker thread.
   uint32_t current_index = index % thread_count;
-  work_data_[current_index].push(task);
+  work_lines_[current_index].push(task);
 }
 
 bool thread_pool::extract_task(concore2full_task* task) noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
   zone.set_param("task", reinterpret_cast<uint64_t>(task));
   zone.add_flow_terminate(reinterpret_cast<uint64_t>(task));
-  auto d = static_cast<thread_data*>(task->worker_data_);
+  auto d = static_cast<work_line*>(task->worker_data_);
   return d ? d->extract_task(task) : false;
 }
 
 void thread_pool::request_stop() noexcept {
-  for (auto& d : work_data_) {
-    d.request_stop();
+  for (auto& l : work_lines_) {
+    l.request_stop();
   }
 }
 
@@ -103,12 +103,12 @@ void thread_pool::join() noexcept {
   threads_.clear();
 }
 
-void thread_pool::thread_data::request_stop() noexcept {
+void thread_pool::work_line::request_stop() noexcept {
   std::unique_lock lock{bottleneck_};
   should_stop_ = true;
   wakeup_token_.notify();
 }
-bool thread_pool::thread_data::try_push(concore2full_task* task) noexcept {
+bool thread_pool::work_line::try_push(concore2full_task* task) noexcept {
   // Fail if we can't acquire the lock.
   std::unique_lock lock{bottleneck_, std::try_to_lock};
   if (!lock)
@@ -117,18 +117,18 @@ bool thread_pool::thread_data::try_push(concore2full_task* task) noexcept {
   push_unprotected(task);
   return true;
 }
-void thread_pool::thread_data::push(concore2full_task* task) noexcept {
+void thread_pool::work_line::push(concore2full_task* task) noexcept {
   // Add the task at the back of the queue.
   std::unique_lock lock{bottleneck_};
   push_unprotected(task);
 }
-concore2full_task* thread_pool::thread_data::try_pop() noexcept {
+concore2full_task* thread_pool::work_line::try_pop() noexcept {
   std::unique_lock lock{bottleneck_, std::try_to_lock};
   if (!lock || !tasks_stack_)
     return nullptr;
   return pop_unprotected();
 }
-concore2full_task* thread_pool::thread_data::pop() noexcept {
+concore2full_task* thread_pool::work_line::pop() noexcept {
   // If we we have some task, try to execute it.
   {
     std::unique_lock lock{bottleneck_};
@@ -163,7 +163,7 @@ concore2full_task* thread_pool::thread_data::pop() noexcept {
     sleep_helper.sleep();
   }
 }
-bool thread_pool::thread_data::extract_task(concore2full_task* task) noexcept {
+bool thread_pool::work_line::extract_task(concore2full_task* task) noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
   zone.set_param("line", this);
   std::unique_lock lock{bottleneck_};
@@ -188,9 +188,9 @@ bool thread_pool::thread_data::extract_task(concore2full_task* task) noexcept {
   }
 }
 
-void thread_pool::thread_data::wakeup() noexcept { wakeup_token_.notify(); }
+void thread_pool::work_line::wakeup() noexcept { wakeup_token_.notify(); }
 
-void thread_pool::thread_data::push_unprotected(concore2full_task* task) noexcept {
+void thread_pool::work_line::push_unprotected(concore2full_task* task) noexcept {
   // Add the task in the front of the list.
   assert(check_list(tasks_stack_, this));
   bool was_empty = tasks_stack_ == nullptr;
@@ -206,7 +206,7 @@ void thread_pool::thread_data::push_unprotected(concore2full_task* task) noexcep
     wakeup_token_.notify();
 }
 
-concore2full_task* thread_pool::thread_data::pop_unprotected() noexcept {
+concore2full_task* thread_pool::work_line::pop_unprotected() noexcept {
   assert(check_list(tasks_stack_, this));
   if (tasks_stack_) {
     concore2full_task* res = tasks_stack_;
@@ -242,7 +242,7 @@ void thread_pool::thread_main(int index) noexcept {
     // Try to pop a task from the first thread data available.
     for (int i = 0; i < thread_count; i++) {
       current_index = (i + index) % thread_count;
-      to_execute = work_data_[current_index].try_pop();
+      to_execute = work_lines_[current_index].try_pop();
       if (to_execute)
         break;
     }
@@ -250,7 +250,7 @@ void thread_pool::thread_main(int index) noexcept {
     // If we can't find anything available, block on our task queue.
     if (!to_execute) {
       current_index = index;
-      to_execute = work_data_[current_index].pop();
+      to_execute = work_lines_[current_index].pop();
 
       // If stop was requested, exit thread worker function.
       if (!to_execute)

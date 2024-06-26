@@ -66,7 +66,7 @@ public:
 private:
   //! Data corresponding to a thread. Contains a list of tasks corresponding to this thread, and
   //! the required synchronization.
-  class thread_data {
+  class work_line {
   public:
     //! Requests the thread operating on this data to stop.
     void request_stop() noexcept;
@@ -149,7 +149,7 @@ private:
   std::vector<std::thread> threads_;
   //! Data corresponding to each working thread, containing the list of tasks that need to be
   //! executed.
-  std::vector<thread_data> work_data_;
+  std::vector<work_line> work_lines_;
   //! The index of the next thread to get new tasks. We use unsigned integers as we want this value
   //! to nicely wrap around. The value can be bigger than the actual number of threads.
   std::atomic<uint32_t> thread_index_to_push_to_{0};
@@ -163,7 +163,7 @@ private:
    * that list, it will try to take tasks from other lists. If there are no tasks to execute, this
    * will wait for tasks to appear in the list corresponding to the current thread.
    *
-   * @sa thread_data
+   * @sa work_line
    */
   void thread_main(int index) noexcept;
 };
