@@ -25,6 +25,18 @@ target_compile_features(concore2full PUBLIC cxx_std_20)
 # Turn on warning-as-error
 set_property(TARGET concore2full PROPERTY COMPILE_WARNING_AS_ERROR ON)
 
+# Turn on experimental library features for libc++
+include(CheckCXXSymbolExists)
+if(cxx_std_20 IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+  set(header version)
+else()
+  set(header ciso646)
+endif()
+check_cxx_symbol_exists(_LIBCPP_VERSION ${header} LIBCPP)
+if(LIBCPP)
+     target_compile_options(concore2full PUBLIC -fexperimental-library)
+endif()
+
 set(PROFILING_LITE_PATH "INVALID" CACHE PATH "Path towards profiling-lite")
 if(EXISTS "${PROFILING_LITE_PATH}/cxx")
      message(STATUS "Using profiling-lite from: ${PROFILING_LITE_PATH}")

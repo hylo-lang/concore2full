@@ -28,7 +28,7 @@ bool check_list(concore2full_task* head, void* data) {
 #endif
 
 namespace {
-//! Return the desired level of conurrency.
+//! Return the desired level of concurrency.
 size_t concurrency() {
   // Check if we have a maximum concurrency set as environment variable.
   const char* env_var = std::getenv("CONCORE_MAX_CONCURRENCY");
@@ -43,11 +43,22 @@ size_t concurrency() {
 
 thread_pool::thread_pool() : thread_pool(concurrency()) {}
 
-thread_pool::thread_pool(int thread_count) : work_lines_(thread_count) {
+thread_pool::thread_pool(int thread_count) : work_lines_(thread_count + 1) {
+  // Create the sleep objects.
+  int num_sleep_objects = thread_count + std::max(4, thread_count);
+  sleep_objects_.resize(num_sleep_objects);
+
+  // Free sleep objects (all the ones above the thread count).
+  free_sleep_objects_.reserve(thread_count);
+  for (int i = 0; i < thread_count; i++) {
+    free_sleep_objects_.push_back(thread_count + i);
+  }
+
+  // Start the threads.
   threads_.reserve(thread_count);
   try {
     for (int i = 0; i < thread_count; i++) {
-      threads_.emplace_back([this, i] { thread_main(i); }, i);
+      threads_.emplace_back([this, i] { thread_main(i); });
     }
   } catch (...) {
     join();
@@ -103,13 +114,51 @@ bool thread_pool::extract_task(concore2full_task* task) noexcept {
   return res;
 }
 
+void thread_pool::offer_help_until(std::stop_token stop_condition) noexcept {
+  (void)profiling::zone{CURRENT_LOCATION()};
+
+  // Get a free sleep object index.
+  int sleep_object_index = -1;
+  {
+    std::unique_lock lock{free_sleep_objects_bottleneck_};
+    if (!free_sleep_objects_.empty()) {
+      sleep_object_index = free_sleep_objects_.back();
+      free_sleep_objects_.pop_back();
+    }
+  }
+
+  // If we don't have a slot, just sleep.
+  // This is not ideal, but it's ok for our needs. We don't want too many active worker threads.
+  if (sleep_object_index < 0) {
+    // Sleep until we are woken up.
+    thread_sleep_data sleep_object;
+    std::stop_callback callback(stop_condition, [&sleep_object] { sleep_object.try_notify(0); });
+    (void)sleep_object.sleep(stop_condition);
+    return;
+  }
+
+  // Get the registered sleep object.
+  thread_sleep_data& sleep_object = sleep_objects_[sleep_object_index];
+  std::stop_callback callback(stop_condition, [&sleep_object] { sleep_object.try_notify(0); });
+
+  // Run the loop to execute tasks.
+  int index_hint = sleep_object_index;
+  execute_work(stop_condition, index_hint, sleep_object);
+
+  // Return the sleep object
+  {
+    std::unique_lock lock{free_sleep_objects_bottleneck_};
+    free_sleep_objects_.push_back(sleep_object_index);
+  }
+}
+
 void thread_pool::join() noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
   // Tell everybody to stop.
-  stop_requested_.store(true, std::memory_order_release);
+  global_shutdown_.request_stop();
   // Sync: publish all previous state before joining.
   // Wake up all the threads.
-  for (auto& t : threads_) {
+  for (auto& t : sleep_objects_) {
     t.try_notify(0);
   }
   // Join the threads.
@@ -119,7 +168,7 @@ void thread_pool::join() noexcept {
   threads_.clear();
 }
 
-bool thread_pool::worker_thread_data::try_notify(int work_line_hint) noexcept {
+bool thread_pool::thread_sleep_data::try_notify(int work_line_hint) noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
 
   if (wake_requests_.fetch_add(1, std::memory_order_acquire) == 0) {
@@ -137,7 +186,7 @@ bool thread_pool::worker_thread_data::try_notify(int work_line_hint) noexcept {
   }
   return false;
 }
-int thread_pool::worker_thread_data::sleep(std::atomic<bool>& stop_requested) noexcept {
+int thread_pool::thread_sleep_data::sleep(std::stop_token stop_condition) noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
 
   detail::sleep_helper sleep_helper;
@@ -146,7 +195,7 @@ int thread_pool::worker_thread_data::sleep(std::atomic<bool>& stop_requested) no
     // Sync: acquire: don't move any sleep operations before this.
     // Sync: release: don't move the above `wakeup_token_` stores after this. A thread that is
     // trying to wake us up should have access to the wakeup token.
-    if (!stop_requested.load(std::memory_order_relaxed)) {
+    if (!stop_condition.stop_requested()) {
       // Sync: no ordering guarantees needed here.
       sleep_helper.sleep();
     }
@@ -157,7 +206,6 @@ int thread_pool::worker_thread_data::sleep(std::atomic<bool>& stop_requested) no
   return work_line_start_index_.load(std::memory_order_acquire);
   // Sync: Don't move any loads before this; we might influence futher loads.
 }
-void thread_pool::worker_thread_data::join() { thread_.join(); }
 
 bool thread_pool::work_line::try_push(concore2full_task* task) noexcept {
   // Fail if we can't acquire the lock.
@@ -234,8 +282,8 @@ concore2full_task* thread_pool::work_line::pop_unprotected() noexcept {
 void thread_pool::notify_one(int work_line_hint) noexcept {
   int old = num_tasks_.fetch_add(1, std::memory_order_relaxed);
   // Sync: no ordering guarantees needed here.
-  if (old <= int(threads_.size())) {
-    for (auto& t : threads_) {
+  if (old <= int(sleep_objects_.size())) {
+    for (auto& t : sleep_objects_) {
       if (t.try_notify(work_line_hint)) {
         return;
       }
@@ -256,9 +304,19 @@ void thread_pool::thread_main(int thread_index) noexcept {
   // We need to exit on the same thread.
   thread_snapshot t;
 
+  execute_work(global_shutdown_.get_token(), thread_index, sleep_objects_[thread_index]);
+
+  // Ensure we finish on the same thread
+  t.revert();
+
+  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread end")};
+}
+
+void thread_pool::execute_work(std::stop_token stop_condition, int index_hint,
+                               thread_sleep_data& sleep_object) noexcept {
   int work_line_count = work_lines_.size();
-  int work_line_hint = thread_index;
-  while (!stop_requested_.load(std::memory_order_relaxed)) {
+  int work_line_hint = index_hint;
+  while (!stop_condition.stop_requested()) {
     // Sync: no ordering guarantees needed here.
 
     // First check if we need to restore this thread to somebody else.
@@ -267,7 +325,7 @@ void thread_pool::thread_main(int thread_index) noexcept {
     if (num_tasks_.load(std::memory_order_acquire) == 0) {
       // Sync: don't move any sleep operations before this load.
       // If there are no tasks, we can sleep.
-      work_line_hint = threads_[thread_index].sleep(stop_requested_);
+      work_line_hint = sleep_object.sleep(stop_condition);
     }
 
     concore2full_task* to_execute{nullptr};
@@ -293,11 +351,6 @@ void thread_pool::thread_main(int thread_index) noexcept {
       continue;
     }
   }
-
-  // Ensure we finish on the same thread
-  t.revert();
-
-  (void)profiling::zone_instant{CURRENT_LOCATION_N("worker thread end")};
 }
 
 } // namespace concore2full

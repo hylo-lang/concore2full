@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <mutex>
+#include <stop_token>
 #include <thread>
 #include <vector>
 
@@ -56,6 +57,10 @@ public:
    */
   bool extract_task(concore2full_task* task) noexcept;
 
+  //! Makes the current thread join the thread pool until `stop_condition` is set, executing work
+  //! from the pool.
+  void offer_help_until(std::stop_token stop_condition) noexcept;
+
   //! Stops executing more work and waits for all the threads to complete.
   void join() noexcept;
 
@@ -63,35 +68,26 @@ public:
   int available_parallelism() const noexcept { return threads_.size(); }
 
 private:
-  //! Data corresponding to a worker thread.
-  class worker_thread_data {
+  //! Helper class that is used by threads to go to sleep, and to be woken up.
+  class thread_sleep_data {
   public:
-    template <typename F>
-    explicit worker_thread_data(F&& f, int work_line_start_index)
-        : work_line_start_index_(work_line_start_index), thread_((std::forward<F>(f))) {}
-
-    //! If sleeping, wakeup the threads and ask it to execute work on `work_line_hint` work line.
+    //! If sleeping, wakeup the thread and ask it to execute work on `work_line_hint` work line.
     //! Returns `true` if a thread is woken up.
     bool try_notify(int work_line_hint) noexcept;
 
     //! Attempts to put the thread to sleep, until the thread is notified or `stop_requested` is
-    //! `true`.
-    int sleep(std::atomic<bool>& stop_requested) noexcept;
-
-    //! Called to end up the thread.
-    void join();
+    //! `true`. Returns the `work_line_hint` that was used to wake up the thread.
+    int sleep(std::stop_token stop_condition) noexcept;
 
   private:
     //! Token used to wake up the thread.
     detail::wakeup_token wakeup_token_;
-    //! The work line index to start working from.
-    detail::catomic<int> work_line_start_index_;
     //! The number of notifies that are pending.
     //! Zero means that the thread is sleeping; a value greater than zero, it means that the thread
     //! is awake (or waking up).
     detail::catomic<int> wake_requests_{1};
-    //! The thread that is executing the work.
-    std::thread thread_;
+    //! The work line index to start working from.
+    detail::catomic<int> work_line_start_index_{0};
   };
 
   //! Collection of tasks that need to be executed.
@@ -159,11 +155,22 @@ private:
   //! to nicely wrap around. The value can be bigger than the actual number of work lines.
   std::atomic<uint32_t> line_to_push_to_{0};
 
-  //! True if we are requested to stop any work on the thread_pool.
-  std::atomic<bool> stop_requested_{false};
+  //! The global stop source that can be used to stop all the threads.
+  std::stop_source global_shutdown_;
+
+  //! The objects used to help the threads to sleep and wake up.
+  std::vector<thread_sleep_data> sleep_objects_;
+
+  //! The indices of free sleep objects, in the sleep_objects_ vector.
+  //! All the indices here will be greather than `threads_.size()`, as the first `threads_.size()`
+  //! objects are reserved for our own worker threads.
+  std::vector<int> free_sleep_objects_;
+
+  //! Mutex used to protect `free_sleep_objects_`.
+  std::mutex free_sleep_objects_bottleneck_;
 
   //! The threads that are doing the work.
-  std::vector<worker_thread_data> threads_;
+  std::vector<std::thread> threads_;
 
   void notify_one(int work_line_hint) noexcept;
 
@@ -179,6 +186,12 @@ private:
    * @sa work_line
    */
   void thread_main(int index) noexcept;
+
+  //! Execute work from the thread pool until `stop_condition` is set.
+  //! Tries to use the work line with index `index_hint` first, but may use other lines, and can
+  //! steal tasks from other threads. Sleeps on `sleep_object` if there are no tasks to execute.
+  void execute_work(std::stop_token stop_condition, int index_hint,
+                    thread_sleep_data& sleep_object) noexcept;
 };
 
 } // namespace concore2full
