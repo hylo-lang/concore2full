@@ -80,12 +80,28 @@ inline void emit_thread_name_and_stack(const char* name) {
   profiling_lite::set_thread_name(profiling_lite::get_current_thread(), name);
 }
 
+namespace low_level {
+inline void define_counter_track(uint64_t tid, const char* name) {
+  profiling_lite::define_counter_track(tid, name);
+}
+inline void emit_counter_value(uint64_t tid, int64_t value) {
+  profiling_lite::emit_counter_value(tid, profiling_lite::now(), value);
+}
+inline void emit_counter_value(uint64_t tid, double value) {
+  profiling_lite::emit_counter_value(tid, profiling_lite::now(), value);
+}
+} // namespace low_level
+
 } // namespace concore2full::profiling
 
 #else
 
 #define CURRENT_LOCATION() 0
 #define CURRENT_LOCATION_N(name) 0
+
+#define CONCORE2FULL_INSTRUMENT(operation) operation
+
+#define CONCORE2FULL_TRACE(static_name, value) 0
 
 namespace concore2full::profiling {
 
@@ -125,6 +141,12 @@ struct zone_instant {
   void set_category(const char* static_name) {}
 };
 
+namespace low_level {
+inline void define_counter_track(uint64_t tid, const char* name) {}
+inline void emit_counter_value(uint64_t tid, int64_t value) {}
+inline void emit_counter_value(uint64_t tid, double value) {}
+} // namespace low_level
+
 inline void define_stack(const void* begin, const void* end, const char* name) {}
 inline void emit_thread_name_and_stack(const char* name) {}
 
@@ -133,6 +155,18 @@ inline void emit_thread_name_and_stack(const char* name) {}
 #endif
 
 namespace concore2full::profiling {
+
+template <std::integral T>
+inline void define_counter_track(std::atomic<T>& counter, const char* name) {
+  auto tid = reinterpret_cast<uint64_t>(&counter);
+  low_level::define_counter_track(tid, name);
+}
+template <std::integral T> inline void emit_counter_value(std::atomic<T>& counter) {
+  auto tid = reinterpret_cast<uint64_t>(&counter);
+  // auto value = static_cast<int64_t>(counter.load(std::memory_order_relaxed));
+  auto value = static_cast<int64_t>(counter.load(std::memory_order_relaxed));
+  low_level::emit_counter_value(tid, value);
+}
 
 template <typename Duration> inline void sleep_for(Duration d) {
   zone zone{CURRENT_LOCATION()};

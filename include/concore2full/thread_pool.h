@@ -1,11 +1,13 @@
 #pragma once
 
 #include "concore2full/c/task.h"
+#include "concore2full/detail/catomic.h"
 #include "concore2full/detail/sleep_helper.h"
 #include "concore2full/profiling.h"
 
 #include <cassert>
 #include <mutex>
+#include <stop_token>
 #include <thread>
 #include <vector>
 
@@ -55,22 +57,44 @@ public:
    */
   bool extract_task(concore2full_task* task) noexcept;
 
-  //! Requests the thread to stop. The threads will stop after executing all the submitted work.
-  void request_stop() noexcept;
-  //! Waits for all the threads to complete; should be called after `request_stop()`.
+  //! Makes the current thread join the thread pool until `stop_condition` is set, executing work
+  //! from the pool.
+  void offer_help_until(std::stop_token stop_condition) noexcept;
+
+  //! Stops executing more work and waits for all the threads to complete.
   void join() noexcept;
 
   //! Returns the number of threads in `this`.
   int available_parallelism() const noexcept { return threads_.size(); }
 
 private:
-  //! Data corresponding to a thread. Contains a list of tasks corresponding to this thread, and
-  //! the required synchronization.
+  //! Helper class that is used by threads to go to sleep, and to be woken up.
+  class thread_sleep_data {
+  public:
+    //! If sleeping, wakeup the thread and ask it to execute work on `work_line_hint` work line.
+    //! Returns `true` if a thread is woken up.
+    bool try_notify(int work_line_hint) noexcept;
+
+    //! Attempts to put the thread to sleep, until the thread is notified or `stop_requested` is
+    //! `true`. Returns the `work_line_hint` that was used to wake up the thread.
+    int sleep(std::stop_token stop_condition) noexcept;
+
+  private:
+    //! Token used to wake up the thread.
+    detail::wakeup_token wakeup_token_;
+    //! The number of notifies that are pending.
+    //! Zero means that the thread is sleeping; a value greater than zero, it means that the thread
+    //! is awake (or waking up).
+    detail::catomic<int> wake_requests_{1};
+    //! The work line index to start working from.
+    detail::catomic<int> work_line_start_index_{0};
+  };
+
+  //! Collection of tasks that need to be executed.
+  //! Instead of placing all tasks into a single collection, we use multiple such objects to reduce
+  //! contention.
   class work_line {
   public:
-    //! Requests the thread operating on this data to stop.
-    void request_stop() noexcept;
-
     /**
      * @brief Try pushing a task into the list of tasks.
      * @param task The task that needs to be executed.
@@ -105,38 +129,14 @@ private:
      */
     [[nodiscard]] concore2full_task* try_pop() noexcept;
 
-    /**
-     * @brief Pop a task to execute
-     * @return The task to be executed, or null if stop was requested
-     *
-     * This will attempt to get a task from the list to be executed. If the mutex is already
-     * acquired by some other thread, this will block until the mutex is released. If there is not
-     * task to be executed, this will block until there is one to execute.
-     *
-     * If stop was requested, and there is no task in the list, this will return `nullptr` without
-     * blocking.
-     *
-     * @sa try_pop()
-     */
-    [[nodiscard]] concore2full_task* pop() noexcept;
-
     //! Removes `task` from the list of tasks.
     bool extract_task(concore2full_task* task) noexcept;
-
-    //! Wake up the worker thread.
-    //! This is needed in the case that the current thread needs to be reclaimed.
-    void wakeup() noexcept;
 
   private:
     //! Mutex used to protect the access to the task list.
     std::mutex bottleneck_;
-    //! Token used to wake up the thread.
-    detail::wakeup_token wakeup_token_;
     //! The stack of tasks that need to be executed.
     concore2full_task* tasks_stack_{nullptr};
-    //! Indicates when the we should not block while waiting for new task, ending the current worker
-    //! thread.
-    bool should_stop_{false};
 
     //! Pushes `task` to the worker, without worrying about the lock.
     void push_unprotected(concore2full_task* task) noexcept;
@@ -145,14 +145,34 @@ private:
     [[nodiscard]] concore2full_task* pop_unprotected() noexcept;
   };
 
-  //! The threads that are doing the work.
-  std::vector<std::thread> threads_;
   //! Data corresponding to each working thread, containing the list of tasks that need to be
   //! executed.
   std::vector<work_line> work_lines_;
-  //! The index of the next thread to get new tasks. We use unsigned integers as we want this value
-  //! to nicely wrap around. The value can be bigger than the actual number of threads.
-  std::atomic<uint32_t> thread_index_to_push_to_{0};
+  //! The number of tasks that are currently in the thread pool.
+  std::atomic<int> num_tasks_;
+
+  //! The index of the next line to get new tasks. We use unsigned integers as we want this value
+  //! to nicely wrap around. The value can be bigger than the actual number of work lines.
+  std::atomic<uint32_t> line_to_push_to_{0};
+
+  //! The global stop source that can be used to stop all the threads.
+  std::stop_source global_shutdown_;
+
+  //! The objects used to help the threads to sleep and wake up.
+  std::vector<thread_sleep_data> sleep_objects_;
+
+  //! The indices of free sleep objects, in the sleep_objects_ vector.
+  //! All the indices here will be greather than `threads_.size()`, as the first `threads_.size()`
+  //! objects are reserved for our own worker threads.
+  std::vector<int> free_sleep_objects_;
+
+  //! Mutex used to protect `free_sleep_objects_`.
+  std::mutex free_sleep_objects_bottleneck_;
+
+  //! The threads that are doing the work.
+  std::vector<std::thread> threads_;
+
+  void notify_one(int work_line_hint) noexcept;
 
   /**
    * @brief The main function to be executed by the worker threads
@@ -166,6 +186,12 @@ private:
    * @sa work_line
    */
   void thread_main(int index) noexcept;
+
+  //! Execute work from the thread pool until `stop_condition` is set.
+  //! Tries to use the work line with index `index_hint` first, but may use other lines, and can
+  //! steal tasks from other threads. Sleeps on `sleep_object` if there are no tasks to execute.
+  void execute_work(std::stop_token stop_condition, int index_hint,
+                    thread_sleep_data& sleep_object) noexcept;
 };
 
 } // namespace concore2full

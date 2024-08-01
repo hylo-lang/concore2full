@@ -11,9 +11,9 @@ The following tools are needed:
 
     Execute the following:
     ```
-    cmake -G Ninja -S . -B <build-directory> -D CMAKE_BUILD_TYPE=<build-type> -DWITH_TESTS=On \
+    cmake -G Ninja -S . -B <build-directory> -D CMAKE_BUILD_TYPE=<build-type> -DWITH_TESTS=On
     ```
-    where `<build-directory>` is a build directory (usually `build` or `.build`), and `<build-type>` is the build type (usually `Debug` or `Release`).
+    where `<build-directory>` is a build directory (e.g., `build/Release`), and `<build-type>` is the build type (usually `Debug` or `Release`).
 
 2. **Build step**
     ```

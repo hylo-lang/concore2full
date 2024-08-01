@@ -17,7 +17,6 @@ struct global_thread_pool_wrapper {
   /// Reverts the thread snapshot and stops the wrapped thread pool.
   ~global_thread_pool_wrapper() {
     snapshot_.revert();
-    wrapped_.request_stop();
     wrapped_.join();
   }
 };

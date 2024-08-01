@@ -64,10 +64,21 @@ static std::vector<thread_info*> g_threads;
 //! Global mutex to protect access to `g_threads`
 static std::mutex g_threads_bottleneck;
 
+//! Quick way to get a number from a thread ID. Used in profiling.
+// uint64_t thread_id_number(std::thread::id id) { return *reinterpret_cast<uint64_t*>(&id); }
+
 //! Add a thread to our list of threads.
 void add_thread(thread_info* info) {
   std::lock_guard<std::mutex> lock{g_threads_bottleneck};
   g_threads.push_back(info);
+}
+
+//! Remove a thread to our list of threads.
+void remove_thread(thread_info* info) {
+  std::lock_guard<std::mutex> lock{g_threads_bottleneck};
+  auto it = std::find(g_threads.begin(), g_threads.end(), info);
+  if (it != g_threads.end())
+    g_threads.erase(it);
 }
 
 //! Find the thread info for a given thread ID; returns nullptr if one cannot be found.
@@ -99,8 +110,8 @@ void end_switch(thread_info* originator, thread_info* target) {
   std::lock_guard<std::mutex> lock{g_thread_dependency_bottleneck};
   originator->switching_to_.store(nullptr, std::memory_order_relaxed);
   originator->is_currently_switching_.store(false, std::memory_order_relaxed);
-  target->should_switch_with_.store(nullptr, std::memory_order_relaxed);
   target->is_currently_switching_.store(false, std::memory_order_relaxed);
+  target->should_switch_with_.store(nullptr, std::memory_order_release);
 }
 
 //! Repeatedly try to start the switch process, until it succeeds.
@@ -160,6 +171,20 @@ void requested_switch_with(thread_info* target) {
 
 } // namespace
 
+thread_info::thread_info() {
+  // profiling::zone_instant zone{CURRENT_LOCATION()};
+  // zone.set_param("cur_thread,x", this);
+  // zone.add_flow(this);
+  thread_id_ = std::this_thread::get_id();
+  add_thread(this);
+}
+thread_info::~thread_info() {
+  // profiling::zone_instant zone{CURRENT_LOCATION()};
+  // zone.set_param("cur_thread,x", this);
+  // zone.add_flow(this);
+  remove_thread(this);
+}
+
 thread_info& get_current_thread_info() {
   thread_info* result = &tls_thread_info;
 
@@ -167,6 +192,10 @@ thread_info& get_current_thread_info() {
   // It seems that thread_local doesn't always work when in the same function we call this function,
   // while the thread is changing.
   if (result->thread_id_ != std::this_thread::get_id()) {
+    // profiling::zone_instant z1{CURRENT_LOCATION_N("thread_id mismatch")};
+    // z1.set_param("cur_thread,x", result);
+    // z1.set_param("thread-id", thread_id_number(result->thread_id_));
+    // z1.add_flow(result);
     // We are on a different thread.
     result = find_thread(std::this_thread::get_id());
     if (!result) {
@@ -176,6 +205,10 @@ thread_info& get_current_thread_info() {
       add_thread(result);
     }
   }
+  // profiling::zone_instant zone{CURRENT_LOCATION()};
+  // zone.set_param("cur_thread,x", result);
+  // zone.add_flow(result);
+  // zone.set_param("thread-id", thread_id_number(result->thread_id_));
 
   return *result;
 }

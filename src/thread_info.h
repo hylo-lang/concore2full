@@ -12,6 +12,14 @@ struct thread_info;
 //! Describes the data associated for each thread, used for controlling the swiching of control
 //! flows.
 struct thread_info {
+  thread_info();
+  ~thread_info();
+
+  thread_info(const thread_info&) = delete;
+  thread_info& operator=(const thread_info&) = delete;
+  thread_info(thread_info&&) = delete;
+  thread_info& operator=(thread_info&&) = delete;
+
   //! The ID of the thread.
   std::thread::id thread_id_{};
 
