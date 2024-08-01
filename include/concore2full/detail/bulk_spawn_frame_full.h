@@ -2,6 +2,7 @@
 
 #include "concore2full/c/spawn.h"
 #include "concore2full/detail/bulk_spawn_frame_base.h"
+#include "concore2full/detail/raw_delete.h"
 
 #include <functional>
 #include <memory>
@@ -24,13 +25,13 @@ template <typename Fn> struct bulk_spawn_frame_full {
   void await() { base_frame_.await(); }
 
   //! Allocates a frame for bulk spawning `count` tasks that call `f`.
-  static std::unique_ptr<bulk_spawn_frame_full> allocate(int count, Fn&& f) {
+  static raw_unique_ptr<bulk_spawn_frame_full> allocate(int count, Fn&& f) {
     size_t size_base_frame = bulk_spawn_frame_base::frame_size(count);
     size_t total_size =
         sizeof(bulk_spawn_frame_full) - sizeof(bulk_spawn_frame_base) + size_base_frame;
     void* p = operator new(total_size);
     try {
-      return std::unique_ptr<bulk_spawn_frame_full>{
+      return raw_unique_ptr<bulk_spawn_frame_full>{
           new (p) bulk_spawn_frame_full(count, std::forward<Fn>(f))};
     } catch (...) {
       operator delete(p);

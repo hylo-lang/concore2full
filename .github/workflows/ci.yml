@@ -14,6 +14,19 @@ jobs:
           cc: gcc
           cmakeflags: -DCMAKE_BUILD_TYPE=Release -DWITH_TESTS=On
           ctestflags: --test-dir /tmp/build/test
+  gcc-asan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          submodules: recursive
+      - uses: docker://lucteo/action-cxx-toolkit.v9.main:latest
+        with:
+          checks: build test install warnings
+          cc: gcc
+          cmakeflags: -DCMAKE_BUILD_TYPE=Release -DWITH_TESTS=On
+          cxxflags: -fsanitize=address -fsanitize=undefined
+          ctestflags: --test-dir /tmp/build/test
   clang-format:
     runs-on: ubuntu-latest
     steps:
