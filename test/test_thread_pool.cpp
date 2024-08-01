@@ -13,6 +13,7 @@ using namespace std::chrono_literals;
 //! Throws if `timeout` is reached.
 void wait_until(std::predicate auto predicate, std::chrono::milliseconds sleep_time = 1ms,
                 std::chrono::milliseconds timeout = 1s) {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
   auto start_time = std::chrono::high_resolution_clock::now();
   while (true) {
     // If the predicate is true, we are done.
@@ -40,6 +41,7 @@ template <std::invocable Fn> struct fun_task : concore2full_task {
 };
 
 TEST_CASE("thread_pool can be default constructed, and has some parallelism", "[thread_pool]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
   // Act
   concore2full::thread_pool sut;
 
@@ -48,6 +50,7 @@ TEST_CASE("thread_pool can be default constructed, and has some parallelism", "[
 }
 TEST_CASE("thread_pool can be default constructed with specified number of threads",
           "[thread_pool]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
   // Act
   concore2full::thread_pool sut(13);
 
@@ -55,6 +58,7 @@ TEST_CASE("thread_pool can be default constructed with specified number of threa
   REQUIRE(sut.available_parallelism() == 13);
 }
 TEST_CASE("thread_pool can execute tasks", "[thread_pool]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
   // Arrange
   concore2full::thread_pool sut;
   bool called{false};
@@ -70,6 +74,7 @@ TEST_CASE("thread_pool can execute tasks", "[thread_pool]") {
   REQUIRE(called);
 }
 TEST_CASE("thread_pool can execute two tasks in parallel", "[thread_pool]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
   // Arrange
   concore2full::thread_pool sut;
   if (sut.available_parallelism() < 2)
@@ -114,6 +119,7 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the available hardware 
   the enqueueing of new tasks. This way, we reduce contention, and we ensure that we distribute the
   later tasks to all the threads.
   */
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
   concore2full::thread_pool sut;
   auto n = sut.available_parallelism();
   if (n > 2) {
@@ -171,6 +177,7 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the available hardware 
 }
 
 TEST_CASE("thread_pool can enqueue multiple tasks at once, and execute them", "[thread_pool]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
   // Arrange
   concore2full::thread_pool sut;
   if (sut.available_parallelism() < 2)

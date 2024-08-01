@@ -10,6 +10,10 @@ wakeup_token::wakeup_token() : thread_(nullptr) {}
 void wakeup_token::notify() {
   if (thread_)
     wake_up(*thread_);
+  else {
+    (void)profiling::zone_instant{CURRENT_LOCATION_N("ERROR: trying to notify a null thread")};
+    assert(false);
+  }
 }
 
 void wakeup_token::invalidate() { thread_ = nullptr; }

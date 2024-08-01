@@ -1,6 +1,7 @@
 #pragma once
 
 #include "concore2full/c/task.h"
+#include "concore2full/detail/catomic.h"
 #include "concore2full/detail/sleep_helper.h"
 #include "concore2full/profiling.h"
 
@@ -64,13 +65,42 @@ public:
   int available_parallelism() const noexcept { return threads_.size(); }
 
 private:
-  //! Data corresponding to a thread. Contains a list of tasks corresponding to this thread, and
-  //! the required synchronization.
+  //! Data corresponding to a worker thread.
+  class worker_thread_data {
+  public:
+    template <typename F>
+    explicit worker_thread_data(F&& f, int work_line_start_index)
+        : work_line_start_index_(work_line_start_index), thread_((std::forward<F>(f))) {}
+
+    //! If sleeping, wakeup the threads and ask it to execute work on `work_line_hint` work line.
+    //! Returns `true` if a thread is woken up.
+    bool try_notify(int work_line_hint) noexcept;
+
+    //! Attempts to put the thread to sleep, until the thread is notified or `stop_requested` is
+    //! `true`.
+    int sleep(std::atomic<bool>& stop_requested) noexcept;
+
+    //! Called to end up the thread.
+    void join();
+
+  private:
+    //! Token used to wake up the thread.
+    detail::wakeup_token wakeup_token_;
+    //! The work line index to start working from.
+    detail::catomic<int> work_line_start_index_;
+    //! The number of notifies that are pending.
+    //! Zero means that the thread is sleeping; a value greater than zero, it means that the thread
+    //! is awake (or waking up).
+    detail::catomic<int> wake_requests_{1};
+    //! The thread that is executing the work.
+    std::thread thread_;
+  };
+
+  //! Collection of tasks that need to be executed.
+  //! Instead of placing all tasks into a single collection, we use multiple such objects to reduce
+  //! contention.
   class work_line {
   public:
-    //! Requests the thread operating on this data to stop.
-    void request_stop() noexcept;
-
     /**
      * @brief Try pushing a task into the list of tasks.
      * @param task The task that needs to be executed.
@@ -105,38 +135,14 @@ private:
      */
     [[nodiscard]] concore2full_task* try_pop() noexcept;
 
-    /**
-     * @brief Pop a task to execute
-     * @return The task to be executed, or null if stop was requested
-     *
-     * This will attempt to get a task from the list to be executed. If the mutex is already
-     * acquired by some other thread, this will block until the mutex is released. If there is not
-     * task to be executed, this will block until there is one to execute.
-     *
-     * If stop was requested, and there is no task in the list, this will return `nullptr` without
-     * blocking.
-     *
-     * @sa try_pop()
-     */
-    [[nodiscard]] concore2full_task* pop() noexcept;
-
     //! Removes `task` from the list of tasks.
     bool extract_task(concore2full_task* task) noexcept;
-
-    //! Wake up the worker thread.
-    //! This is needed in the case that the current thread needs to be reclaimed.
-    void wakeup() noexcept;
 
   private:
     //! Mutex used to protect the access to the task list.
     std::mutex bottleneck_;
-    //! Token used to wake up the thread.
-    detail::wakeup_token wakeup_token_;
     //! The stack of tasks that need to be executed.
     concore2full_task* tasks_stack_{nullptr};
-    //! Indicates when the we should not block while waiting for new task, ending the current worker
-    //! thread.
-    bool should_stop_{false};
 
     //! Pushes `task` to the worker, without worrying about the lock.
     void push_unprotected(concore2full_task* task) noexcept;
@@ -145,14 +151,23 @@ private:
     [[nodiscard]] concore2full_task* pop_unprotected() noexcept;
   };
 
-  //! The threads that are doing the work.
-  std::vector<std::thread> threads_;
   //! Data corresponding to each working thread, containing the list of tasks that need to be
   //! executed.
   std::vector<work_line> work_lines_;
-  //! The index of the next thread to get new tasks. We use unsigned integers as we want this value
-  //! to nicely wrap around. The value can be bigger than the actual number of threads.
-  std::atomic<uint32_t> thread_index_to_push_to_{0};
+  //! The number of tasks that are currently in the thread pool.
+  std::atomic<int> num_tasks_;
+
+  //! The index of the next line to get new tasks. We use unsigned integers as we want this value
+  //! to nicely wrap around. The value can be bigger than the actual number of work lines.
+  std::atomic<uint32_t> line_to_push_to_{0};
+
+  //! True if we are requested to stop any work on the thread_pool.
+  std::atomic<bool> stop_requested_{false};
+
+  //! The threads that are doing the work.
+  std::vector<worker_thread_data> threads_;
+
+  void notify_one(int work_line_hint) noexcept;
 
   /**
    * @brief The main function to be executed by the worker threads
