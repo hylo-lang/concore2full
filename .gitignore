@@ -3,6 +3,7 @@
 
 build
 CMakeUserPresets.json
+CMakePresets.json
 *.bin-trace
 
 # Conan generated files
