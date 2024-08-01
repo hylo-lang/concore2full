@@ -67,7 +67,6 @@ TEST_CASE("thread_pool can execute tasks", "[thread_pool]") {
   // Act
   sut.enqueue(&task);
   wait_until([&] { return called; });
-  sut.request_stop();
   sut.join();
 
   // Assert
@@ -95,7 +94,6 @@ TEST_CASE("thread_pool can execute two tasks in parallel", "[thread_pool]") {
   sut.enqueue(&task1);
   sut.enqueue(&task2);
   l.arrive_and_wait();
-  sut.request_stop();
   sut.join();
 
   // Assert
@@ -166,7 +164,6 @@ TEST_CASE("thread_pool can execute tasks in parallel, to the available hardware 
       sut.enqueue(&t);
     }
     wait_until([&] { return task_counter.load(std::memory_order_relaxed) == num_tasks; });
-    sut.request_stop();
     sut.join();
 
     // Assert
@@ -206,7 +203,6 @@ TEST_CASE("thread_pool can enqueue multiple tasks at once, and execute them", "[
   // Act
   sut.enqueue_bulk(&tasks[0], num_tasks);
   wait_until([&] { return count.load(std::memory_order_relaxed) == num_tasks; });
-  sut.request_stop();
   sut.join();
 
   // Assert

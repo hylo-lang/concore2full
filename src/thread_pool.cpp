@@ -103,12 +103,6 @@ bool thread_pool::extract_task(concore2full_task* task) noexcept {
   return res;
 }
 
-void thread_pool::request_stop() noexcept {
-  profiling::zone zone{CURRENT_LOCATION()};
-  stop_requested_.store(true, std::memory_order_relaxed);
-  // Sync: no ordering guarantees needed here.
-}
-
 void thread_pool::join() noexcept {
   profiling::zone zone{CURRENT_LOCATION()};
   // Tell everybody to stop.

@@ -56,9 +56,7 @@ public:
    */
   bool extract_task(concore2full_task* task) noexcept;
 
-  //! Requests the thread to stop. The threads will stop after executing all the submitted work.
-  void request_stop() noexcept;
-  //! Waits for all the threads to complete; should be called after `request_stop()`.
+  //! Stops executing more work and waits for all the threads to complete.
   void join() noexcept;
 
   //! Returns the number of threads in `this`.
