@@ -15,6 +15,7 @@ src/sleep_helper.cpp
 src/thread_info.cpp
 src/thread_pool.cpp
 src/thread_snapshot.cpp
+src/suspend.cpp
 )
 
 add_library(concore2full ${Sources})

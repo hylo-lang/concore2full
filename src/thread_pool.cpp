@@ -44,6 +44,8 @@ size_t concurrency() {
 thread_pool::thread_pool() : thread_pool(concurrency()) {}
 
 thread_pool::thread_pool(int thread_count) : work_lines_(thread_count + 1) {
+  profiling::zone zone{CURRENT_LOCATION()};
+  zone.set_param("thread_count", static_cast<int64_t>(thread_count));
   // Create the sleep objects.
   int num_sleep_objects = thread_count + std::max(4, thread_count);
   sleep_objects_.resize(num_sleep_objects);

@@ -8,6 +8,7 @@ set(sourceFiles
 "test_bulk_spawn.cpp"
 "test_thread_pool.cpp"
 "test_sync_execute.cpp"
+"test_suspend.cpp"
 "example_conc_sort.cpp"
 "example_skynet.cpp"
 "sketch_split.cpp"

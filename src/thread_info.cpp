@@ -225,6 +225,8 @@ void switch_to(thread_info* target) {
   if (current == target) {
     return;
   }
+  zone.set_param("current,x", current);
+  zone.set_param("target,x", target);
 
   std::atomic<bool> done{false};
 
