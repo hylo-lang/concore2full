@@ -11,6 +11,7 @@ set(sourceFiles
 "test_suspend.cpp"
 "example_conc_sort.cpp"
 "example_skynet.cpp"
+"example_async_io.cpp"
 "sketch_split.cpp"
 # "sketch_cancellation.cpp"
 "tests_c.cpp"
