@@ -3,6 +3,7 @@
 #include <concore2full/thread_snapshot.h>
 
 #include <concepts>
+#include <functional>
 
 namespace concore2full {
 
