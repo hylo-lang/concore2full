@@ -9,6 +9,7 @@ set(Sources
 src/profiling.cpp
 src/spawn.cpp
 src/spawn_frame_base.cpp
+src/copyable_spawn_frame_base.cpp
 src/bulk_spawn_frame_base.cpp
 src/this_thread.cpp
 src/sleep_helper.cpp
