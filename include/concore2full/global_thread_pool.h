@@ -13,9 +13,10 @@ struct global_thread_pool_wrapper {
   thread_snapshot snapshot_;
 
   /// Constructs the wrapped thread pool, remembering the OS thread.
-  global_thread_pool_wrapper() = default;
+  global_thread_pool_wrapper() { profiling::zone zone{CURRENT_LOCATION()}; }
   /// Reverts the thread snapshot and stops the wrapped thread pool.
   ~global_thread_pool_wrapper() {
+    profiling::zone zone{CURRENT_LOCATION()};
     snapshot_.revert();
     wrapped_.join();
   }
