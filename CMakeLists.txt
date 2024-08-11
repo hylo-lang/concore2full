@@ -39,6 +39,9 @@ if(LIBCPP)
      target_compile_options(concore2full PUBLIC -fexperimental-library)
 endif()
 
+# target_compile_options(concore2full PUBLIC -fsanitize=address,undefined)
+# target_link_options(concore2full PUBLIC -fsanitize=address,undefined)
+
 set(PROFILING_LITE_PATH "INVALID" CACHE PATH "Path towards profiling-lite")
 if(EXISTS "${PROFILING_LITE_PATH}/cxx")
      message(STATUS "Using profiling-lite from: ${PROFILING_LITE_PATH}")

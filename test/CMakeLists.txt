@@ -29,6 +29,9 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2)
 
+# Enable this to disable the POSIX signals in Catch2
+# target_compile_definitions(Catch2 PUBLIC CATCH_CONFIG_NO_POSIX_SIGNALS)
+
 # Add the tests executable
 add_executable(test.concore2full ${sourceFiles})
 target_link_libraries(test.concore2full PRIVATE concore2full Catch2::Catch2WithMain)

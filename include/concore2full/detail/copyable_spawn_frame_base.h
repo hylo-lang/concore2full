@@ -4,6 +4,7 @@
 #include "concore2full/c/task.h"
 #include "concore2full/detail/callcc.h"
 #include "concore2full/detail/value_holder.h"
+#include "concore2full/profiling_atomic.h"
 #include "concore2full/suspend.h"
 #include "concore2full/this_thread.h"
 
@@ -35,13 +36,13 @@ private:
   struct concore2full_task task_;
 
   //! The state of the computation, with respect to reaching the await point.
-  std::atomic<uint32_t> sync_state_;
+  profiling::atomic<uint32_t> sync_state_;
 
-  //! The suspension point of the originator of the spawn.
-  // continuation_t originator_;
+  //! The suspension point of the first thread to arrive in await.
+  continuation_t first_await_;
 
   //! The suspension point of the thread that is performing the spawned work.
-  // continuation_t secondary_thread_;
+  continuation_t secondary_thread_;
 
   //! The user function to be called to execute the async work.
   concore2full_spawn_function_t user_function_;

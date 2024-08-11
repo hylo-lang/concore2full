@@ -1,6 +1,6 @@
 #include "concore2full/profiling.h"
 #include "concore2full/spawn.h"
-#include "concore2full/global_thread_pool.h"
+#include "concore2full/sync_execute.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -150,7 +150,6 @@ TEST_CASE("escaping_spawn result can be returned from functions", "[spawn]") {
 
 TEST_CASE("a copyable_spawn future can be copied", "[spawn]") {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  (void)concore2full::global_thread_pool(); // ensure we have a valid thread pool
 
   // Act
   auto f{concore2full::copyable_spawn([&]() -> int { return 13; })};
@@ -161,14 +160,11 @@ TEST_CASE("a copyable_spawn future can be copied", "[spawn]") {
   REQUIRE(f.await() == 13);
   REQUIRE(f2.await() == 13);
   REQUIRE(f3.await() == 13);
-
-  concore2full::global_thread_pool().join();
 }
 
 TEST_CASE("copyable_spawn: multiple awaits while the task is not done yet", "[spawn]") {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
   // Arrange
-  (void)concore2full::global_thread_pool(); // ensure we have a valid thread pool
   std::latch l{4};
   int res1{-1};
   int res2{-1};
@@ -182,18 +178,24 @@ TEST_CASE("copyable_spawn: multiple awaits while the task is not done yet", "[sp
   })};
   auto t1 = std::thread([&l, &res1, f]() mutable {
     concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread1")};
-    l.arrive_and_wait();
-    res1 = f.await();
+    concore2full::sync_execute([&l, &res1, f]() mutable {
+      l.arrive_and_wait();
+      res1 = f.await();
+    });
   });
   auto t2 = std::thread([&l, &res2, f]() mutable {
     concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread2")};
-    l.arrive_and_wait();
-    res2 = f.await();
+    concore2full::sync_execute([&l, &res2, f]() mutable {
+      l.arrive_and_wait();
+      res2 = f.await();
+    });
   });
   auto t3 = std::thread([&l, &res3, f]() mutable {
     concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread3")};
-    l.arrive_and_wait();
-    res3 = f.await();
+    concore2full::sync_execute([&l, &res3, f]() mutable {
+      l.arrive_and_wait();
+      res3 = f.await();
+    });
   });
   t1.join();
   t2.join();
@@ -203,14 +205,11 @@ TEST_CASE("copyable_spawn: multiple awaits while the task is not done yet", "[sp
   REQUIRE(res1 == 13);
   REQUIRE(res2 == 13);
   REQUIRE(res3 == 13);
-
-  concore2full::global_thread_pool().join();
 }
 
 TEST_CASE("copyable_spawn: multiple awaits unlocked by finishing the computation", "[spawn]") {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
   // Arrange
-  (void)concore2full::global_thread_pool(); // ensure we have a valid thread pool
   std::latch l{4};
   std::binary_semaphore can_finish{0};
   int res1{-1};
@@ -225,18 +224,24 @@ TEST_CASE("copyable_spawn: multiple awaits unlocked by finishing the computation
   })};
   auto t1 = std::thread([&l, &res1, f]() mutable {
     concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread1")};
-    l.arrive_and_wait();
-    res1 = f.await();
+    concore2full::sync_execute([&l, &res1, f]() mutable {
+      l.arrive_and_wait();
+      res1 = f.await();
+    });
   });
   auto t2 = std::thread([&l, &res2, f]() mutable {
     concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread2")};
-    l.arrive_and_wait();
-    res2 = f.await();
+    concore2full::sync_execute([&l, &res2, f]() mutable {
+      l.arrive_and_wait();
+      res2 = f.await();
+    });
   });
   auto t3 = std::thread([&l, &res3, f]() mutable {
     concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread3")};
-    l.arrive_and_wait();
-    res3 = f.await();
+    concore2full::sync_execute([&l, &res3, f]() mutable {
+      l.arrive_and_wait();
+      res3 = f.await();
+    });
   });
   l.arrive_and_wait(); // all the threads reached the await point
   std::this_thread::sleep_for(100us);
@@ -249,6 +254,4 @@ TEST_CASE("copyable_spawn: multiple awaits unlocked by finishing the computation
   REQUIRE(res1 == 13);
   REQUIRE(res2 == 13);
   REQUIRE(res3 == 13);
-
-  concore2full::global_thread_pool().join();
 }
