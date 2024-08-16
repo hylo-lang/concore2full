@@ -14,17 +14,16 @@ using concore2full::detail::copyable_spawn_frame_base;
 
 /*
 Valid transitions:
-ss_initial_state -> ss_async_started --> ss_async_finished
-                                     \-> ss_main_finishing -> ss_main_finished ->
-ss_async_finished_after_main
+ss_initial_state -> ss_async_started --> ss_async_finishing ---------------------> ss_all_done
+                                     \-> ss_main_finishing -> ss_main_finished -/
 */
 enum sync_state_values {
   ss_initial_state = 0,
   ss_async_started,
-  ss_async_finished,
+  ss_async_finishing,
   ss_main_finishing,
   ss_main_finished,
-  ss_async_finished_after_main,
+  ss_all_done,
 };
 
 } // namespace
@@ -39,56 +38,55 @@ void copyable_spawn_frame_base::spawn(concore2full_spawn_function_t f) {
 }
 void copyable_spawn_frame_base::await() {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
-  // If the async work hasn't started yet, check if we can execute it here directly.
-  // if (sync_state_.load(std::memory_order_acquire) == ss_initial_state) {
-  //   if (concore2full::global_thread_pool().extract_task(&task_)) {
-  //     concore2full::profiling::zone z{CURRENT_LOCATION_N("execute inplace")};
-  //     // We've extracted the task from the queue; execute it here directly.
-  //     user_function_(to_interface());
-  //     // We are done.
-  //     return;
+  if (awaiters_count_.fetch_add(1, std::memory_order_acquire) == 0) {
+    // We are the first awaiter
 
-  //     // TODO: what about the followup awaits?
-  //   }
-  //   // If we are here, the task was already started by the thread pool.
-  //   // Wait for it to store the continuation object.
-  //   concore2full::detail::atomic_wait(sync_state_, [](int v) { return v >= ss_async_started; });
-  // }
-
-  // TODO
-  concore2full::detail::atomic_wait(sync_state_, [](int v) { return v >= ss_async_started; });
-
-  uint32_t expected{ss_async_started};
-  if (sync_state_.compare_exchange_strong(expected, ss_main_finishing)) {
-    // We are the first to finish; we need to start switching threads.
-    auto c = callcc([this](continuation_t await_cc) -> continuation_t {
-      first_await_ = await_cc;
-      // We are done "finishing".
-      sync_state_.store(ss_main_finished, std::memory_order_release);
-      // Complete the thread switching.
-      return secondary_thread_;
-    });
-    (void)c;
-  } else {
-    // We are not the first to arrive here; either the async work finished, or another thread
-    // reached the await point before us.
-    if (expected == ss_async_finished) {
-      // The async thread finished; we can continue directly, no need to switch threads.
-      return;
-    } else {
-      // There is another await that arrived before us; but we still need to wait for the async work
-      // to finish
-      concore2full::profiling::zone zone{CURRENT_LOCATION_N("waiting on both")};
-
-      // If the async work has already finished, complete directly.
-      auto state = sync_state_.load(std::memory_order_acquire);
-      if (state == ss_async_finished || state == ss_async_finished_after_main) {
+    // If the async work hasn't started yet, check if we can execute it here directly.
+    if (sync_state_.load(std::memory_order_acquire) == ss_initial_state) {
+      if (concore2full::global_thread_pool().extract_task(&task_)) {
+        concore2full::profiling::zone z{CURRENT_LOCATION_N("execute inplace")};
+        // We've extracted the task from the queue; execute it here directly.
+        user_function_(to_interface());
+        // Tell other awaits that the async work has finished.
+        sync_state_.store(ss_all_done, std::memory_order_release);
+        // Notify all the waiting futures.
+        suspend_token_.notify();
+        // We are done; return regularly.
         return;
       }
-
-      // Suspend the current thread; let the worker wake us up,
-      suspend(suspend_token_);
+      // If we are here, the task was already started by the thread pool.
+      // Wait for it to store the continuation object.
+      concore2full::detail::atomic_wait(sync_state_, [](int v) { return v >= ss_async_started; });
     }
+
+    uint32_t expected{ss_async_started};
+    if (sync_state_.compare_exchange_strong(expected, ss_main_finishing)) {
+      // We are the first to finish; we need to start switching threads.
+      auto c = callcc([this](continuation_t await_cc) -> continuation_t {
+        first_await_ = await_cc;
+        // We are done "finishing".
+        sync_state_.store(ss_main_finished, std::memory_order_release);
+        // Complete the thread switching.
+        return secondary_thread_;
+      });
+      (void)c;
+    } else {
+      // The async thread is finising or finished; ensure that it's finished
+      concore2full::detail::atomic_wait(sync_state_, [](int v) { return v >= ss_all_done; });
+      // We can continue directly, no need to switch threads.
+    }
+  } else {
+    // We are not the first awaiter
+    concore2full::profiling::zone zone{CURRENT_LOCATION_N("late awaiter")};
+
+    // If the async work has already finished, complete directly.
+    auto state = sync_state_.load(std::memory_order_acquire);
+    if (state == ss_all_done) {
+      return;
+    }
+
+    // Suspend the current thread; let the worker wake us up,
+    suspend(suspend_token_);
   }
 }
 
@@ -97,10 +95,13 @@ continuation_t copyable_spawn_frame_base::on_async_complete(continuation_t c) {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
 
   uint32_t expected{ss_async_started};
-  if (sync_state_.compare_exchange_strong(expected, ss_async_finished)) {
+  if (sync_state_.compare_exchange_strong(expected, ss_async_finishing)) {
     // We are first to arrive at completion.
-    // We won't need any thread switch, so we can safely exit.
-    // Return the original continuation.
+    // Notify futures that may arrive at the wait location immediately after this.
+    suspend_token_.notify();
+    // Tell the world that the computation has finished; here the frame may be dropped
+    sync_state_.store(ss_all_done, std::memory_order_release);
+    // We won't need any thread switch, just return the original continuation.
     return c;
   } else {
     // There is at least one `await` that arrived before us; we need a thread swtich.
@@ -110,7 +111,7 @@ continuation_t copyable_spawn_frame_base::on_async_complete(continuation_t c) {
     concore2full::detail::atomic_wait(sync_state_, [](int v) { return v == ss_main_finished; });
 
     // Tell the world that the computation has finished.
-    sync_state_.store(ss_async_finished_after_main, std::memory_order_release);
+    sync_state_.store(ss_all_done, std::memory_order_release);
 
     // Notify all the waiting futures.
     suspend_token_.notify();

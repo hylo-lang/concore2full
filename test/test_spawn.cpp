@@ -1,3 +1,4 @@
+#include "concore2full/global_thread_pool.h"
 #include "concore2full/profiling.h"
 #include "concore2full/spawn.h"
 #include "concore2full/sync_execute.h"
@@ -23,7 +24,6 @@ TEST_CASE("spawn can execute work", "[spawn]") {
     return 13;
   })};
   done.acquire();
-  std::this_thread::sleep_for(5ms);
   auto res = op.await();
 
   // Assert
@@ -84,7 +84,6 @@ TEST_CASE("escaping_spawn can execute work", "[spawn]") {
     return 13;
   })};
   done.acquire();
-  std::this_thread::sleep_for(5ms);
   auto res = op.await();
 
   // Assert
@@ -249,6 +248,59 @@ TEST_CASE("copyable_spawn: multiple awaits unlocked by finishing the computation
   t1.join();
   t2.join();
   t3.join();
+
+  // Assert
+  REQUIRE(res1 == 13);
+  REQUIRE(res2 == 13);
+  REQUIRE(res3 == 13);
+}
+
+TEST_CASE("copyable_spawn: multiple awaits start before the task", "[spawn]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  // Arrange
+  std::latch l{4};
+  std::latch busy_flag{1};
+  int res1{-1};
+  int res2{-1};
+  int res3{-1};
+  int n = concore2full::global_thread_pool().available_parallelism();
+
+  // Act
+  auto occupy_the_thread_pool_future{
+      concore2full::bulk_spawn(2 * n, [&](int index) { busy_flag.wait(); })};
+  concore2full::profiling::sleep_for(100us); // wait for the busy tasks to start
+  auto f{concore2full::copyable_spawn([&]() -> int {
+    concore2full::profiling::zone zone{CURRENT_LOCATION_N("task")};
+    return 13;
+  })};
+  auto t1 = std::thread([&l, &res1, f]() mutable {
+    concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread1")};
+    concore2full::sync_execute([&l, &res1, f]() mutable {
+      l.arrive_and_wait();
+      res1 = f.await();
+    });
+  });
+  auto t2 = std::thread([&l, &res2, f]() mutable {
+    concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread2")};
+    concore2full::sync_execute([&l, &res2, f]() mutable {
+      l.arrive_and_wait();
+      res2 = f.await();
+    });
+  });
+  auto t3 = std::thread([&l, &res3, f]() mutable {
+    concore2full::profiling::zone zone{CURRENT_LOCATION_N("thread3")};
+    concore2full::sync_execute([&l, &res3, f]() mutable {
+      l.arrive_and_wait();
+      res3 = f.await();
+    });
+  });
+  l.arrive_and_wait(); // all the threads reached the await point
+  // finish the initial set of tasks, so that the actual future work can start
+  busy_flag.count_down();
+  t1.join();
+  t2.join();
+  t3.join();
+  occupy_the_thread_pool_future.await();
 
   // Assert
   REQUIRE(res1 == 13);

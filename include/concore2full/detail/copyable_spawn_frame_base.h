@@ -37,6 +37,8 @@ private:
 
   //! The state of the computation, with respect to reaching the await point.
   profiling::atomic<uint32_t> sync_state_;
+  //! The number of threads that reached await.
+  std::atomic<uint32_t> awaiters_count_{0};
 
   //! The suspension point of the first thread to arrive in await.
   continuation_t first_await_;
