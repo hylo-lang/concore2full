@@ -83,6 +83,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_weak (success)", v);
     else
       do_trace(t0, "compare_exchange_weak (fail)", expected);
+    return r;
   }
   bool compare_exchange_weak(T& expected, T v, std::memory_order success_order,
                              std::memory_order fail_order) noexcept {
@@ -92,6 +93,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_weak (success)", v);
     else
       do_trace(t0, "compare_exchange_weak (fail)", expected);
+    return r;
   }
   bool compare_exchange_strong(T& expected, T v, std::memory_order success_order,
                                std::memory_order fail_order) volatile noexcept {
@@ -101,6 +103,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_strong (success)", v);
     else
       do_trace(t0, "compare_exchange_strong (fail)", expected);
+    return r;
   }
   bool compare_exchange_strong(T& expected, T v, std::memory_order success_order,
                                std::memory_order fail_order) noexcept {
@@ -110,6 +113,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_strong (success)", v);
     else
       do_trace(t0, "compare_exchange_strong (fail)", expected);
+    return r;
   }
   bool
   compare_exchange_weak(T& expected, T v,
@@ -120,6 +124,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_weak (success)", v);
     else
       do_trace(t0, "compare_exchange_weak (fail)", expected);
+    return r;
   }
   bool compare_exchange_weak(T& expected, T v,
                              std::memory_order order = std::memory_order_seq_cst) noexcept {
@@ -129,6 +134,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_weak (success)", v);
     else
       do_trace(t0, "compare_exchange_weak (fail)", expected);
+    return r;
   }
   bool
   compare_exchange_strong(T& expected, T v,
@@ -139,6 +145,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_strong (success)", v);
     else
       do_trace(t0, "compare_exchange_strong (fail)", expected);
+    return r;
   }
   bool compare_exchange_strong(T& expected, T v,
                                std::memory_order order = std::memory_order_seq_cst) noexcept {
@@ -148,6 +155,7 @@ template <std::integral T> struct atomic : detail::catomic<T> {
       do_trace(t0, "compare_exchange_strong (success)", v);
     else
       do_trace(t0, "compare_exchange_strong (fail)", expected);
+    return r;
   }
 
   void wait(T v, std::memory_order order = std::memory_order_seq_cst) const volatile noexcept {
@@ -262,8 +270,13 @@ template <std::integral T> struct atomic : detail::catomic<T> {
   T operator^=(T v) noexcept { return fetch_xor(v) ^ v; }
 
 private:
+#if USE_PROFILING_LITE
   using timestamp_t = profiling_lite::timestamp_t;
   static timestamp_t now() { return profiling_lite::now(); }
+#else
+  using timestamp_t = uint64_t;
+  static timestamp_t now() { return 0; }
+#endif
 
   void do_trace(timestamp_t t0, std::string_view name, T value) const {
 #if USE_PROFILING_LITE

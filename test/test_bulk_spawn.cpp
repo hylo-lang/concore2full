@@ -35,7 +35,7 @@ auto create_op(int count, std::atomic<int>& sum) {
 
 template <typename Op> void receiver(Op&& op) { std::forward<Op>(op).await(); }
 
-TEST_CASE("bulk_spawn result can be returned from functions", "[spawn]") {
+TEST_CASE("bulk_spawn result can be returned from functions", "[bulk_spawn]") {
   // Arrange
   std::atomic<int> sum{0};
   // Act

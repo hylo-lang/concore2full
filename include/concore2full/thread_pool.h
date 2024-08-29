@@ -62,6 +62,7 @@ public:
   void offer_help_until(std::stop_token stop_condition) noexcept;
 
   //! Stops executing more work and waits for all the threads to complete.
+  //! Note: must not be called from a thread that was originally part of the thread pool.
   void join() noexcept;
 
   //! Returns the number of threads in `this`.

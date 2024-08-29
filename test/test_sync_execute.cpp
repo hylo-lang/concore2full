@@ -3,19 +3,22 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <latch>
+#include <random>
 #include <thread>
 
 using namespace std::chrono_literals;
 
 template <typename Fn> int do_thread_inversion(Fn&& f) {
   auto h = concore2full::spawn([f = std::forward<Fn>(f)] {
-    std::this_thread::sleep_for(5ms);
+    std::this_thread::sleep_for(500us);
     f();
     return 0;
   });
-  std::this_thread::sleep_for(1ms);
+  std::this_thread::sleep_for(10us);
   return h.await(); // thread inversion
 }
 
@@ -186,4 +189,89 @@ TEST_CASE("sync_execute can return a value in the presence of a thread switch", 
 
   // Assert
   REQUIRE(r == 13);
+}
+
+TEST_CASE("sync_execute works in the presence of many thread switches", "[sync_execute]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  using concore2full::detail::callcc;
+  using concore2full::detail::continuation_t;
+
+  // Arrange
+  constexpr int num_threads = 10;
+  continuation_t continuations[num_threads];
+  std::latch after_continuations_set{num_threads};
+  std::latch before_hopping{1};
+  auto work = [&](int index) {
+    concore2full::sync_execute([&] {
+      (void)callcc([&, index](continuation_t work_end) {
+        concore2full::profiling::zone zone{CURRENT_LOCATION_N("work coro")};
+        continuations[index] = work_end;
+        after_continuations_set.count_down();
+        // Wait for the main thread to shuffle the continuations
+        before_hopping.wait();
+        return continuations[index];
+      });
+    });
+  };
+
+  // Act
+  std::vector<std::thread> threads;
+  threads.reserve(num_threads);
+  for (int i = 0; i < num_threads; i++) {
+    threads.emplace_back([i, &work] { work(i); });
+  }
+  after_continuations_set.wait();
+  std::shuffle(std::begin(continuations), std::end(continuations),
+               std::mt19937{std::random_device{}()});
+  before_hopping.count_down();
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  // All should finish, without crashing or deadlocks
+}
+
+TEST_CASE("finishing multiple threads at once after sync_execute", "[sync_execute]") {
+  concore2full::profiling::zone zone{CURRENT_LOCATION()};
+  using concore2full::detail::callcc;
+  using concore2full::detail::continuation_t;
+
+  // Arrange
+  constexpr int num_threads = 10;
+  continuation_t continuations[num_threads];
+  std::latch after_continuations_set{num_threads};
+  std::latch before_hopping{1};
+  std::latch should_finish{1};
+  auto work = [&](int index) {
+    concore2full::profiling::zone zone{CURRENT_LOCATION_N("work")};
+    concore2full::sync_execute([&] {
+      (void)callcc([&, index](continuation_t work_end) {
+        concore2full::profiling::zone zone{CURRENT_LOCATION_N("work coro")};
+        continuations[index] = work_end;
+        after_continuations_set.count_down();
+        // Wait for the main thread to shuffle the continuations
+        before_hopping.wait();
+        return continuations[index];
+      });
+      should_finish.wait();
+    });
+  };
+
+  // Act
+  std::vector<std::thread> threads;
+  threads.reserve(num_threads);
+  for (int i = 0; i < num_threads; i++) {
+    threads.emplace_back([i, &work] { work(i); });
+  }
+  after_continuations_set.wait();
+  std::shuffle(std::begin(continuations), std::end(continuations),
+               std::mt19937{std::random_device{}()});
+  before_hopping.count_down();
+  std::this_thread::sleep_for(500us);
+  should_finish.count_down();
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  // All should finish, without crashing or deadlocks
 }

@@ -10,8 +10,10 @@
 TEST_CASE("suspend actually suspends the thread of execution", "[suspend]") {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
 
+  // Ensure we have a valid thread pool (and not create it on a worker thread).
+  (void)concore2full::global_thread_pool();
+
   // Arrange
-  (void)concore2full::global_thread_pool(); // ensure we have a valid thread pool
   concore2full::suspend_token* token_ptr{nullptr};
   std::binary_semaphore token_created{0};
   std::atomic<int> counter{0};
@@ -54,15 +56,15 @@ TEST_CASE("suspend actually suspends the thread of execution", "[suspend]") {
     REQUIRE(after_notify_value == 2);
   }
   REQUIRE(counter.load(std::memory_order_relaxed) == 4);
-
-  concore2full::global_thread_pool().join();
 }
 
 TEST_CASE("notify is called before suspend", "[suspend]") {
   concore2full::profiling::zone zone{CURRENT_LOCATION()};
 
+  // Ensure we have a valid thread pool (and not create it on a worker thread).
+  (void)concore2full::global_thread_pool();
+
   // Arrange
-  (void)concore2full::global_thread_pool(); // ensure we have a valid thread pool
   concore2full::suspend_token* token_ptr{nullptr};
   bool reched_after_suspend{false};
   std::binary_semaphore token_created{0};
@@ -100,6 +102,4 @@ TEST_CASE("notify is called before suspend", "[suspend]") {
 
   // Assert
   REQUIRE(reched_after_suspend);
-
-  concore2full::global_thread_pool().join();
 }

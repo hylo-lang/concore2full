@@ -117,7 +117,7 @@ bool thread_pool::extract_task(concore2full_task* task) noexcept {
 }
 
 void thread_pool::offer_help_until(std::stop_token stop_condition) noexcept {
-  (void)profiling::zone{CURRENT_LOCATION()};
+  profiling::zone zone{CURRENT_LOCATION()};
 
   // Get a free sleep object index.
   int sleep_object_index = -1;
@@ -202,7 +202,6 @@ int thread_pool::thread_sleep_data::sleep(std::stop_token stop_condition) noexce
       sleep_helper.sleep();
     }
   }
-  wakeup_token_.invalidate();
   wake_requests_.store(1, std::memory_order_release);
   // Sync: don't any stores after this.
   return work_line_start_index_.load(std::memory_order_acquire);
@@ -298,10 +297,10 @@ std::string thread_name(int index) { return "worker-" + std::to_string(index); }
 void thread_pool::thread_main(int thread_index) noexcept {
   concore2full::profiling::emit_thread_name_and_stack(thread_name(thread_index).c_str());
 
+  auto* cur_thread = &detail::get_current_thread_info();
   profiling::zone_instant z0{CURRENT_LOCATION_N("worker thread start")};
-
   z0.set_param("thread,x", &threads_[thread_index]);
-  z0.set_param("cur_thread,x", &detail::get_current_thread_info());
+  z0.set_param("cur_thread,x", cur_thread);
 
   // We need to exit on the same thread.
   thread_snapshot t;
@@ -330,6 +329,9 @@ void thread_pool::execute_work(std::stop_token stop_condition, int index_hint,
       work_line_hint = sleep_object.sleep(stop_condition);
     }
 
+    if (stop_condition.stop_requested())
+      break;
+
     concore2full_task* to_execute{nullptr};
     int line_index = 0;
 
@@ -347,7 +349,7 @@ void thread_pool::execute_work(std::stop_token stop_condition, int index_hint,
       num_tasks_.fetch_sub(1, std::memory_order_relaxed);
 
       profiling::zone zone2{CURRENT_LOCATION_N("execute")};
-      zone2.set_param("task", to_execute);
+      zone2.set_param("task,x", to_execute);
       zone2.add_flow_terminate(to_execute);
       to_execute->task_function_(to_execute, line_index);
       continue;

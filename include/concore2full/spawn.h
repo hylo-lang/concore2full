@@ -2,6 +2,7 @@
 
 #include "concore2full/c/spawn.h"
 #include "concore2full/detail/bulk_spawn_frame_full.h"
+#include "concore2full/detail/copyable_spawn_frame_base.h"
 #include "concore2full/detail/frame_with_value.h"
 #include "concore2full/detail/shared_frame.h"
 #include "concore2full/detail/spawn_frame_base.h"
@@ -33,6 +34,14 @@ template <std::invocable Fn> inline auto spawn(Fn&& f) {
 template <std::invocable Fn> inline auto escaping_spawn(Fn&& f) {
   using frame_holder_t =
       detail::shared_frame<detail::frame_with_value<detail::spawn_frame_base, Fn>>;
+  return future<frame_holder_t>{detail::start_spawn_t{}, std::forward<Fn>(f)};
+}
+
+//! Same as `spawn`, but the returned future can be copied and moved.
+//! The caller is responsible for calling `await` exactly once on each copy of the returned object.
+template <std::invocable Fn> inline auto copyable_spawn(Fn&& f) {
+  using frame_holder_t =
+      detail::shared_frame<detail::frame_with_value<detail::copyable_spawn_frame_base, Fn>>;
   return future<frame_holder_t>{detail::start_spawn_t{}, std::forward<Fn>(f)};
 }
 

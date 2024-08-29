@@ -9,6 +9,7 @@ set(Sources
 src/profiling.cpp
 src/spawn.cpp
 src/spawn_frame_base.cpp
+src/copyable_spawn_frame_base.cpp
 src/bulk_spawn_frame_base.cpp
 src/this_thread.cpp
 src/sleep_helper.cpp
@@ -37,6 +38,9 @@ check_cxx_symbol_exists(_LIBCPP_VERSION ${header} LIBCPP)
 if(LIBCPP)
      target_compile_options(concore2full PUBLIC -fexperimental-library)
 endif()
+
+# target_compile_options(concore2full PUBLIC -fsanitize=address -fno-omit-frame-pointer)
+# target_link_options(concore2full PUBLIC -fsanitize=address -fno-omit-frame-pointer)
 
 set(PROFILING_LITE_PATH "INVALID" CACHE PATH "Path towards profiling-lite")
 if(EXISTS "${PROFILING_LITE_PATH}/cxx")
