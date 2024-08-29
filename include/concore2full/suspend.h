@@ -17,11 +17,21 @@ private:
   std::stop_source stop_source_;
 
   friend void suspend(suspend_token& token);
+  friend void suspend_quick_resume(suspend_token& token);
 };
 
 //! Suspends the current execution until `token` is notified.
 //!
+//! If the thread pool is executing something, then the suspend may not return immediatelly.
 //! This will allow the thread pool to use the current thread for other activities.
 void suspend(suspend_token& token);
+
+//! Suspends the current execution until `token` is notified; when notified, the execution will
+//! continue asap.
+//!
+//! If the thread pool is executing something, this will not wait until the task is done; it will
+//! quickly continue by spawning a new task. While suspended, this will allow the thread pool to use
+//! the current thread for other activities.
+void suspend_quick_resume(suspend_token& token);
 
 } // namespace concore2full

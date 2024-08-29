@@ -64,10 +64,11 @@ void copyable_spawn_frame_base::await() {
       // We are the first to finish; we need to start switching threads.
       auto c = callcc([this](continuation_t await_cc) -> continuation_t {
         first_await_ = await_cc;
+        auto continue_with = secondary_thread_;
         // We are done "finishing".
         sync_state_.store(ss_main_finished, std::memory_order_release);
         // Complete the thread switching.
-        return secondary_thread_;
+        return continue_with;
       });
       (void)c;
     } else {
@@ -86,7 +87,7 @@ void copyable_spawn_frame_base::await() {
     }
 
     // Suspend the current thread; let the worker wake us up,
-    suspend(suspend_token_);
+    suspend_quick_resume(suspend_token_);
   }
 }
 
